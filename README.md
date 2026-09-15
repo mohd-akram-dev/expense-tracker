@@ -18,10 +18,15 @@ npm run typecheck
 npm run lint
 ```
 
-If your phone and PC are on different networks (or the QR just hangs), use a tunnel:
+`npm start` pins the dev server to your real Wi-Fi address. Expo otherwise advertises the
+first network interface Node reports, which on a machine with Hyper-V, WSL, Docker or a VPN
+is often a virtual adapter (172.x) that the phone cannot route to. Expo Go then shows the
+splash and dies with `java.io.IOException: failed to download asset bundle`.
+
+If your phone and PC are on different networks, or the QR still hangs:
 
 ```bash
-npx expo start --tunnel
+npm run start:tunnel
 ```
 
 ## Build an installable Android APK
