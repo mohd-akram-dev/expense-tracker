@@ -16,6 +16,23 @@ const KEYS: Key[] = [
   { value: '.' }, { value: '0' }, { value: 'back', icon: 'backspace-outline' },
 ];
 
+/**
+ * Groups the whole part for display only — `1234.5` reads as `1,234.5`, and in
+ * an INR locale as `1,234.5`, per that locale's own grouping.
+ *
+ * The fraction is passed through exactly as typed rather than formatted, so a
+ * half-finished `12.` still shows its trailing point instead of jumping to
+ * `12.00` under the user's finger.
+ */
+function groupDigits(value: string, currency: Currency): string {
+  if (value === '') return '';
+
+  const [whole, fraction] = value.split('.');
+  const grouped = whole === '' ? '' : new Intl.NumberFormat(currency.locale).format(Number(whole));
+
+  return fraction === undefined ? grouped : `${grouped}.${fraction}`;
+}
+
 export type AmountKeypadProps = {
   /** the raw typed string, e.g. "149.5" — not a number, so "12." can exist mid-type */
   value: string;
@@ -61,7 +78,7 @@ export function AmountKeypad({ value, onChange, currency }: AmountKeypadProps) {
           {currency.symbol}
         </Text>
         <Text variant="display" tone={value ? 'text' : 'textFaint'} numberOfLines={1} adjustsFontSizeToFit>
-          {value || '0'}
+          {groupDigits(value, currency) || '0'}
         </Text>
       </View>
 

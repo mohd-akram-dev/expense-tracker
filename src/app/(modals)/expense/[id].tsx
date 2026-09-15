@@ -11,11 +11,13 @@ import {
   createExpense,
   deleteExpense,
   getExpense,
+  restoreExpense,
   updateExpense,
 } from '@/db/repositories/expenseRepo';
 import { CURRENCIES, parseAmount, toMajor } from '@/domain/money';
 import { fromIsoDate, isToday, longDateLabel, toIsoDate, today } from '@/domain/period';
 import { useCurrencyCode } from '@/store/settingsStore';
+import { useUndoStore } from '@/store/undoStore';
 import { useTheme } from '@/theme';
 
 import type { Category } from '@/domain/types';
@@ -27,6 +29,7 @@ export default function ExpenseModal() {
 
   const { colors, spacing } = useTheme();
   const currency = CURRENCIES[useCurrencyCode()];
+  const offerUndo = useUndoStore((state) => state.offer);
 
   const [amount, setAmount] = useState('');
   const [title, setTitle] = useState('');
@@ -96,12 +99,19 @@ export default function ExpenseModal() {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          if (id) await deleteExpense(id);
+          if (!id) return;
+
+          await deleteExpense(id);
+          // The delete is soft, so restoring is just clearing deleted_at.
+          offerUndo({
+            label: `${title.trim() || 'Expense'} deleted`,
+            undo: () => restoreExpense(id),
+          });
           router.back();
         },
       },
     ]);
-  }, [id]);
+  }, [id, offerUndo, title]);
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>

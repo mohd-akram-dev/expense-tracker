@@ -1,9 +1,9 @@
 import { router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { ExpenseRow } from '@/components/expense/expense-row';
-import { Card, Divider, EmptyState, Input, Screen, Select, Text } from '@/components/ui';
+import { Card, Chip, ChipRow, Divider, EmptyState, Input, Screen, Select, Text } from '@/components/ui';
 import { listCategories } from '@/db/repositories/categoryRepo';
 import {
   getCategoryBreakdown,
@@ -51,6 +51,7 @@ export default function MonthlyScreen() {
   // Defaults to the month containing today.
   const [anchor, setAnchor] = useState<IsoDate>(() => toIsoDate(new Date()));
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
   const range = useMemo(() => monthRange(anchor), [anchor]);
 
@@ -88,13 +89,16 @@ export default function MonthlyScreen() {
   // Filtering in memory rather than re-querying: the month is already loaded,
   // and a personal month is a few dozen rows.
   const needle = search.trim().toLowerCase();
-  const visible = needle
-    ? data.expenses.filter(
-        (expense) =>
-          expense.title.toLowerCase().includes(needle) ||
-          (expense.note ?? '').toLowerCase().includes(needle)
-      )
-    : data.expenses;
+  const visible = data.expenses.filter((expense) => {
+    if (categoryFilter !== null && expense.categoryId !== categoryFilter) return false;
+    if (needle === '') return true;
+    return (
+      expense.title.toLowerCase().includes(needle) ||
+      (expense.note ?? '').toLowerCase().includes(needle)
+    );
+  });
+
+  const filteredCategory = data.breakdown.find((row) => row.categoryId === categoryFilter);
 
   const byDay = groupByDay(visible);
   const dailyAverage = averageMinor(data.total, daysInRange(range));
@@ -139,11 +143,18 @@ export default function MonthlyScreen() {
           <View style={{ gap: spacing.md }}>
             {data.breakdown.map((row) => {
               const share = data.total > 0 ? row.totalMinor / data.total : 0;
+              const active = categoryFilter === row.categoryId;
               return (
-                <View key={row.categoryId ?? 'none'} style={{ gap: spacing.xs }}>
+                <Pressable
+                  key={row.categoryId ?? 'none'}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  // Tapping a category filters the list below; tapping it again clears.
+                  onPress={() => setCategoryFilter(active ? null : row.categoryId)}
+                  style={{ gap: spacing.xs, opacity: categoryFilter && !active ? 0.45 : 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
                     <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: row.color }} />
-                    <Text variant="body" style={{ flex: 1 }} numberOfLines={1}>
+                    <Text variant={active ? 'bodyStrong' : 'body'} style={{ flex: 1 }} numberOfLines={1}>
                       {row.name}
                     </Text>
                     <Text variant="label" tone="textMuted">
@@ -165,7 +176,7 @@ export default function MonthlyScreen() {
                       }}
                     />
                   </View>
-                </View>
+                </Pressable>
               );
             })}
           </View>
@@ -179,6 +190,17 @@ export default function MonthlyScreen() {
         autoCorrect={false}
         clearButtonMode="while-editing"
       />
+
+      {filteredCategory ? (
+        <ChipRow>
+          <Chip
+            label={`${filteredCategory.name} ✕`}
+            accent={filteredCategory.color}
+            selected
+            onPress={() => setCategoryFilter(null)}
+          />
+        </ChipRow>
+      ) : null}
 
       {byDay.length === 0 ? (
         <Card>

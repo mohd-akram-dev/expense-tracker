@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useCallback } from 'react';
 import { View } from 'react-native';
 
+import { BudgetCard } from '@/components/expense/budget-card';
 import { ExpenseRow } from '@/components/expense/expense-row';
 import { Card, Divider, EmptyState, Screen, Text } from '@/components/ui';
 import { Fab } from '@/components/ui/fab';
@@ -10,7 +11,7 @@ import { getDayTotal, getMonthlyTotal, listRecentExpenses } from '@/db/repositor
 import { CURRENCIES, formatMoney } from '@/domain/money';
 import { monthLabel, monthRange, today } from '@/domain/period';
 import { useFocusQuery } from '@/hooks/use-focus-query';
-import { useCurrencyCode } from '@/store/settingsStore';
+import { useCurrencyCode, useSettingsStore } from '@/store/settingsStore';
 import { useTheme } from '@/theme';
 
 import type { Category, Expense, Minor } from '@/domain/types';
@@ -27,6 +28,7 @@ const EMPTY: Dashboard = { dayTotal: 0, monthTotal: 0, recent: [], categories: [
 export default function DashboardScreen() {
   const { spacing } = useTheme();
   const currency = CURRENCIES[useCurrencyCode()];
+  const budgetMinor = useSettingsStore((state) => state.budgetMinor);
 
   const query = useCallback(async (): Promise<Dashboard> => {
     const range = monthRange();
@@ -49,6 +51,15 @@ export default function DashboardScreen() {
           <TotalCard label="Today" amount={data.dayTotal} />
           <TotalCard label="This month" amount={data.monthTotal} />
         </View>
+
+        {budgetMinor > 0 ? (
+          <BudgetCard
+            spentMinor={data.monthTotal}
+            budgetMinor={budgetMinor}
+            currency={currency}
+            onPress={() => router.push('/settings')}
+          />
+        ) : null}
 
         <Card title="Recent" flush>
           {data.recent.length === 0 ? (

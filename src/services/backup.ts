@@ -45,7 +45,13 @@ export async function buildBackup(): Promise<Backup> {
   };
 }
 
-export type ExportResult = { fileName: string; expenses: number; diary: number };
+export type ExportResult = {
+  fileName: string;
+  expenses: number;
+  diary: number;
+  /** when the export completed, for the "last backed up" line in Settings */
+  at: string;
+};
 
 /**
  * Writes the backup to a file and opens the share sheet, so it can go to Drive,
@@ -68,7 +74,12 @@ export async function exportBackup(): Promise<ExportResult> {
     });
   }
 
-  return { fileName, expenses: backup.expenses.length, diary: backup.diary.length };
+  return {
+    fileName,
+    expenses: backup.expenses.length,
+    diary: backup.diary.length,
+    at: backup.exportedAt,
+  };
 }
 
 export type ImportResult = { expenses: number; diary: number };

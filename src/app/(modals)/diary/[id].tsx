@@ -5,8 +5,15 @@ import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } f
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button, Input, Text } from '@/components/ui';
-import { createEntry, deleteEntry, getEntry, updateEntry } from '@/db/repositories/diaryRepo';
+import {
+  createEntry,
+  deleteEntry,
+  getEntry,
+  restoreEntry,
+  updateEntry,
+} from '@/db/repositories/diaryRepo';
 import { fromIsoDate, isToday, longDateLabel, toIsoDate, today } from '@/domain/period';
+import { useUndoStore } from '@/store/undoStore';
 import { useTheme } from '@/theme';
 
 /** Add and edit share this screen. The id is the literal `new` when adding. */
@@ -15,6 +22,7 @@ export default function DiaryModal() {
   const isNew = id === 'new';
 
   const { colors, spacing } = useTheme();
+  const offerUndo = useUndoStore((state) => state.offer);
 
   const [entryDate, setEntryDate] = useState(today());
   const [title, setTitle] = useState('');
@@ -55,18 +63,25 @@ export default function DiaryModal() {
   }, [body, entryDate, id, isNew, title]);
 
   const confirmDelete = useCallback(() => {
-    Alert.alert('Delete this entry?', 'This cannot be undone.', [
+    Alert.alert('Delete this entry?', 'You can undo this straight afterwards.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          if (id) await deleteEntry(id);
+          if (!id) return;
+
+          await deleteEntry(id);
+          // The delete is soft, so restoring is just clearing deleted_at.
+          offerUndo({
+            label: `${title.trim() || 'Entry'} deleted`,
+            undo: () => restoreEntry(id),
+          });
           router.back();
         },
       },
     ]);
-  }, [id]);
+  }, [id, offerUndo, title]);
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>

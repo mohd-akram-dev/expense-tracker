@@ -1,5 +1,6 @@
 import {
   addMonths,
+  differenceInCalendarDays,
   eachDayOfInterval,
   endOfMonth,
   format,
@@ -117,4 +118,19 @@ export function monthOf(date: IsoDate): number {
  */
 export function monthAnchor(year: number, month: number): IsoDate {
   return toIsoDate(new Date(year, month, 1));
+}
+
+/**
+ * Days remaining in the month containing `date`, counting today. Used to turn
+ * a remaining budget into "what I can spend per day from here".
+ */
+export function daysLeftInMonth(date: IsoDate = today()): number {
+  const d = fromIsoDate(date);
+  return differenceInCalendarDays(endOfMonth(d), d) + 1;
+}
+
+/** Whole days between an ISO-8601 timestamp and now. Negative values clamp to 0. */
+export function daysSince(timestamp: IsoTimestamp): number {
+  const days = differenceInCalendarDays(new Date(), new Date(timestamp));
+  return Number.isFinite(days) ? Math.max(0, days) : 0;
 }

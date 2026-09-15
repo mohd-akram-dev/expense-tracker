@@ -6,7 +6,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { Text } from '@/components/ui';
+import { Text, UndoToast } from '@/components/ui';
 import { initDatabase } from '@/db/client';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useTheme } from '@/theme';
@@ -66,6 +66,7 @@ function App() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="(modals)" options={{ presentation: 'modal' }} />
       </Stack>
+      <UndoToast />
     </ThemeProvider>
   );
 }

@@ -10,6 +10,8 @@ const DEFAULTS: AppSettings = {
   theme: 'system',
   diaryLockEnabled: false,
   onboarded: false,
+  budgetMinor: 0,
+  lastBackupAt: null,
 };
 
 type SettingsState = AppSettings & {
@@ -20,6 +22,9 @@ type SettingsState = AppSettings & {
   setCurrency: (currency: CurrencyCode) => Promise<void>;
   setDiaryLockEnabled: (enabled: boolean) => Promise<void>;
   setOnboarded: (done: boolean) => Promise<void>;
+  setBudget: (minor: number) => Promise<void>;
+  /** called by the backup service after a successful export */
+  markBackedUp: (timestamp: string) => Promise<void>;
 };
 
 /**
@@ -54,6 +59,16 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setOnboarded: async (onboarded) => {
     set({ onboarded });
     await settingsRepo.setOnboarded(onboarded);
+  },
+
+  setBudget: async (budgetMinor) => {
+    set({ budgetMinor });
+    await settingsRepo.setBudget(budgetMinor);
+  },
+
+  markBackedUp: async (lastBackupAt) => {
+    set({ lastBackupAt });
+    await settingsRepo.setLastBackupAt(lastBackupAt);
   },
 }));
 

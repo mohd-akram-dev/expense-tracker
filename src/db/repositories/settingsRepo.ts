@@ -15,6 +15,10 @@ export type AppSettings = {
   theme: ThemePreference;
   diaryLockEnabled: boolean;
   onboarded: boolean;
+  /** monthly spending limit in minor units; 0 means no budget is set */
+  budgetMinor: number;
+  /** ISO-8601 timestamp of the last successful export, or null if never */
+  lastBackupAt: string | null;
 };
 
 export async function getSetting(key: string): Promise<string | null> {
@@ -55,6 +59,8 @@ export async function loadAppSettings(): Promise<AppSettings> {
     theme: (raw.theme as ThemePreference | undefined) ?? 'system',
     diaryLockEnabled: raw.diary_lock_enabled === 'true',
     onboarded: raw.onboarded === 'true',
+    budgetMinor: Number(raw.budget_minor ?? '0') || 0,
+    lastBackupAt: raw.last_backup_at ?? null,
   };
 }
 
@@ -68,6 +74,14 @@ export async function setTheme(theme: ThemePreference): Promise<void> {
 
 export async function setDiaryLockEnabled(enabled: boolean): Promise<void> {
   await setSetting('diary_lock_enabled', enabled ? 'true' : 'false');
+}
+
+export async function setBudget(minor: number): Promise<void> {
+  await setSetting('budget_minor', String(Math.max(0, Math.round(minor))));
+}
+
+export async function setLastBackupAt(timestamp: string): Promise<void> {
+  await setSetting('last_backup_at', timestamp);
 }
 
 export async function setOnboarded(done: boolean): Promise<void> {

@@ -27,6 +27,7 @@ const DEFAULT_SETTINGS: readonly (readonly [key: string, value: string])[] = [
   ['theme', 'system'],
   ['diary_lock_enabled', 'false'],
   ['onboarded', 'false'],
+  ['budget_minor', '0'],
 ];
 
 /**

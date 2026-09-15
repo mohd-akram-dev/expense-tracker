@@ -10,6 +10,7 @@ export { Fab } from './fab';
 export { Select } from './select';
 export { Sheet } from './sheet';
 export { Text } from './text';
+export { UndoToast } from './undo-toast';
 
 export type { ButtonProps, ButtonSize, ButtonVariant } from './button';
 export type { CardProps } from './card';
