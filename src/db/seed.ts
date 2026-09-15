@@ -8,7 +8,7 @@ import type { Category } from '@/domain/types';
  * Default categories, inserted once on first launch. `is_default` marks them so
  * Settings can offer "restore defaults" without touching the user's own categories.
  */
-export const DEFAULT_CATEGORIES: readonly Category[] = [
+const DEFAULT_CATEGORIES: readonly Category[] = [
   { id: 'cat_food', name: 'Food & Drink', icon: 'utensils', color: '#F97316', isDefault: true, sortOrder: 0 },
   { id: 'cat_groceries', name: 'Groceries', icon: 'shopping-basket', color: '#22C55E', isDefault: true, sortOrder: 1 },
   { id: 'cat_transport', name: 'Transport', icon: 'bus', color: '#3B82F6', isDefault: true, sortOrder: 2 },
@@ -25,8 +25,6 @@ export const DEFAULT_CATEGORIES: readonly Category[] = [
 const DEFAULT_SETTINGS: readonly (readonly [key: string, value: string])[] = [
   ['currency', DEFAULT_CURRENCY],
   ['theme', 'system'],
-  ['diary_lock_enabled', 'false'],
-  ['onboarded', 'false'],
   ['budget_minor', '0'],
 ];
 

@@ -13,24 +13,13 @@ export type ThemePreference = 'light' | 'dark' | 'system';
 export type AppSettings = {
   currency: CurrencyCode;
   theme: ThemePreference;
-  diaryLockEnabled: boolean;
-  onboarded: boolean;
   /** monthly spending limit in minor units; 0 means no budget is set */
   budgetMinor: number;
   /** ISO-8601 timestamp of the last successful export, or null if never */
   lastBackupAt: string | null;
 };
 
-export async function getSetting(key: string): Promise<string | null> {
-  const db = await getDb();
-  const row = await db.getFirstAsync<{ value: string }>(
-    'SELECT value FROM settings WHERE key = ?',
-    key
-  );
-  return row?.value ?? null;
-}
-
-export async function setSetting(key: string, value: string): Promise<void> {
+async function setSetting(key: string, value: string): Promise<void> {
   const db = await getDb();
   await db.runAsync(
     `INSERT INTO settings (key, value) VALUES (?, ?)
@@ -40,13 +29,8 @@ export async function setSetting(key: string, value: string): Promise<void> {
   );
 }
 
-export async function deleteSetting(key: string): Promise<void> {
-  const db = await getDb();
-  await db.runAsync('DELETE FROM settings WHERE key = ?', key);
-}
-
 /** One round-trip for the whole settings store, read once at launch. */
-export async function getAllSettings(): Promise<Record<string, string>> {
+async function getAllSettings(): Promise<Record<string, string>> {
   const db = await getDb();
   const rows = await db.getAllAsync<{ key: string; value: string }>('SELECT key, value FROM settings');
   return Object.fromEntries(rows.map((row) => [row.key, row.value]));
@@ -57,8 +41,6 @@ export async function loadAppSettings(): Promise<AppSettings> {
   return {
     currency: (raw.currency as CurrencyCode | undefined) ?? 'INR',
     theme: (raw.theme as ThemePreference | undefined) ?? 'system',
-    diaryLockEnabled: raw.diary_lock_enabled === 'true',
-    onboarded: raw.onboarded === 'true',
     budgetMinor: Number(raw.budget_minor ?? '0') || 0,
     lastBackupAt: raw.last_backup_at ?? null,
   };
@@ -72,18 +54,10 @@ export async function setTheme(theme: ThemePreference): Promise<void> {
   await setSetting('theme', theme);
 }
 
-export async function setDiaryLockEnabled(enabled: boolean): Promise<void> {
-  await setSetting('diary_lock_enabled', enabled ? 'true' : 'false');
-}
-
 export async function setBudget(minor: number): Promise<void> {
   await setSetting('budget_minor', String(Math.max(0, Math.round(minor))));
 }
 
 export async function setLastBackupAt(timestamp: string): Promise<void> {
   await setSetting('last_backup_at', timestamp);
-}
-
-export async function setOnboarded(done: boolean): Promise<void> {
-  await setSetting('onboarded', done ? 'true' : 'false');
 }

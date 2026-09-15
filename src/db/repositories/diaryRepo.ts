@@ -4,12 +4,10 @@ import { now } from '@/domain/period';
 
 import { getDb } from '../client';
 
-import type { DateRange } from '@/domain/period';
 import type {
   DiaryEntry,
   DiaryEntryPatch,
   DiaryStatus,
-  IsoDate,
   Mood,
   NewDiaryEntry,
 } from '@/domain/types';
@@ -168,22 +166,6 @@ export async function setEntryStatus(id: string, status: DiaryStatus): Promise<v
   );
 }
 
-export async function listEntriesInRange(range: DateRange): Promise<DiaryEntry[]> {
-  const db = await getDb();
-  const rows = await db.getAllAsync<DiaryRow>(
-    `${SELECT_LIVE} AND entry_date BETWEEN ? AND ?
-     ORDER BY entry_date DESC, created_at DESC`,
-    range.start,
-    range.end
-  );
-  return rows.map(toEntry);
-}
-
-/** Every entry written on one day — the calendar strip taps through to this. */
-export async function listEntriesOn(date: IsoDate): Promise<DiaryEntry[]> {
-  return listEntriesInRange({ start: date, end: date });
-}
-
 export async function searchEntries(
   query: string,
   limit = 50,
@@ -208,41 +190,6 @@ export async function searchEntries(
         limit
       );
   return rows.map(toEntry);
-}
-
-export async function listEntriesByMood(mood: Mood, limit = 50): Promise<DiaryEntry[]> {
-  const db = await getDb();
-  const rows = await db.getAllAsync<DiaryRow>(
-    `${SELECT_LIVE} AND mood = ? ORDER BY entry_date DESC, created_at DESC LIMIT ?`,
-    mood,
-    limit
-  );
-  return rows.map(toEntry);
-}
-
-/**
- * The set of dates that have at least one entry, so the calendar strip can dot
- * them without loading the bodies.
- */
-export async function getEntryDates(range: DateRange): Promise<IsoDate[]> {
-  const db = await getDb();
-  const rows = await db.getAllAsync<{ entry_date: string }>(
-    `SELECT DISTINCT entry_date
-     FROM diary_entries
-     WHERE deleted_at IS NULL AND entry_date BETWEEN ? AND ?
-     ORDER BY entry_date ASC`,
-    range.start,
-    range.end
-  );
-  return rows.map((row) => row.entry_date);
-}
-
-export async function countEntries(): Promise<number> {
-  const db = await getDb();
-  const row = await db.getFirstAsync<{ count: number }>(
-    'SELECT COUNT(*) AS count FROM diary_entries WHERE deleted_at IS NULL'
-  );
-  return row?.count ?? 0;
 }
 
 /** Every live row, for the backup export. */

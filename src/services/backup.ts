@@ -27,7 +27,7 @@ export type Backup = {
   diary: DiaryEntry[];
 };
 
-export async function buildBackup(): Promise<Backup> {
+async function buildBackup(): Promise<Backup> {
   const [categories, expenses, diary] = await Promise.all([
     listCategories(),
     listAllExpenses(),

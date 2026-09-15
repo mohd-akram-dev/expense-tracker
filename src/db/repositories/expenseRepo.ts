@@ -7,7 +7,6 @@ import { getDb } from '../client';
 import type { DateRange } from '@/domain/period';
 import type {
   CategoryTotal,
-  DailyTotal,
   Expense,
   ExpensePatch,
   IsoDate,
@@ -153,19 +152,6 @@ export async function listRecentExpenses(limit = 5): Promise<Expense[]> {
   return rows.map(toExpense);
 }
 
-export async function searchExpenses(query: string, limit = 50): Promise<Expense[]> {
-  const db = await getDb();
-  const like = `%${query}%`;
-  const rows = await db.getAllAsync<ExpenseRow>(
-    `${SELECT_LIVE} AND (title LIKE ? OR note LIKE ?)
-     ORDER BY spent_on DESC, created_at DESC LIMIT ?`,
-    like,
-    like,
-    limit
-  );
-  return rows.map(toExpense);
-}
-
 /* ----------------------------------------------------------- Aggregates */
 
 /** Total spend across an inclusive date range. Returns 0 when there are no rows. */
@@ -226,24 +212,6 @@ export async function getCategoryBreakdown(range: DateRange): Promise<CategoryTo
     totalMinor: row.total,
     count: row.count,
   }));
-}
-
-/**
- * Spend per day. Only days that have expenses come back — the chart layer pads
- * the gaps using `datesInRange()` so the x-axis stays continuous.
- */
-export async function getDailyTotals(range: DateRange): Promise<DailyTotal[]> {
-  const db = await getDb();
-  const rows = await db.getAllAsync<{ spent_on: string; total: number }>(
-    `SELECT spent_on, SUM(amount_minor) AS total
-     FROM expenses
-     WHERE deleted_at IS NULL AND spent_on BETWEEN ? AND ?
-     GROUP BY spent_on
-     ORDER BY spent_on ASC`,
-    range.start,
-    range.end
-  );
-  return rows.map((row) => ({ date: row.spent_on, totalMinor: row.total }));
 }
 
 /** Every live row, for the backup export. */

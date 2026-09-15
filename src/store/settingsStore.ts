@@ -8,8 +8,6 @@ import type { AppSettings, ThemePreference } from '@/db/repositories/settingsRep
 const DEFAULTS: AppSettings = {
   currency: 'INR',
   theme: 'system',
-  diaryLockEnabled: false,
-  onboarded: false,
   budgetMinor: 0,
   lastBackupAt: null,
 };
@@ -20,8 +18,6 @@ type SettingsState = AppSettings & {
   hydrate: () => Promise<void>;
   setTheme: (theme: ThemePreference) => Promise<void>;
   setCurrency: (currency: CurrencyCode) => Promise<void>;
-  setDiaryLockEnabled: (enabled: boolean) => Promise<void>;
-  setOnboarded: (done: boolean) => Promise<void>;
   setBudget: (minor: number) => Promise<void>;
   /** called by the backup service after a successful export */
   markBackedUp: (timestamp: string) => Promise<void>;
@@ -49,16 +45,6 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setCurrency: async (currency) => {
     set({ currency });
     await settingsRepo.setCurrency(currency);
-  },
-
-  setDiaryLockEnabled: async (diaryLockEnabled) => {
-    set({ diaryLockEnabled });
-    await settingsRepo.setDiaryLockEnabled(diaryLockEnabled);
-  },
-
-  setOnboarded: async (onboarded) => {
-    set({ onboarded });
-    await settingsRepo.setOnboarded(onboarded);
   },
 
   setBudget: async (budgetMinor) => {

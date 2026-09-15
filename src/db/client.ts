@@ -57,8 +57,3 @@ export async function wipeAllData(): Promise<void> {
   });
   await seedDefaults(db);
 }
-
-/** Test/debug helper — forces the next `getDb()` to reopen from scratch. */
-export function resetDbHandleForTests(): void {
-  dbPromise = null;
-}

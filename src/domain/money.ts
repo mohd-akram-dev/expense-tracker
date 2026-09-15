@@ -50,14 +50,6 @@ export function parseAmount(
   return Number.isSafeInteger(minor) ? minor : null;
 }
 
-/** Convert a major-unit number (only ever from a trusted source, e.g. a test) to minor units. */
-export function toMinor(
-  major: number,
-  currency: Currency = CURRENCIES[DEFAULT_CURRENCY]
-): Minor {
-  return Math.round(major * factor(currency));
-}
-
 /** Minor units back to a major-unit number. For display and charts only — never for storage. */
 export function toMajor(
   minor: Minor,
@@ -83,11 +75,6 @@ export function formatMoney(
   }).format(toMajor(abs, currency));
 
   return `${negative ? '-' : ''}${showSymbol ? currency.symbol : ''}${body}`;
-}
-
-/** Sum minor amounts without ever leaving integer space. */
-export function sumMinor(amounts: readonly Minor[]): Minor {
-  return amounts.reduce((total, amount) => total + amount, 0);
 }
 
 /** Integer average, rounded to the nearest minor unit. Returns 0 for an empty divisor. */

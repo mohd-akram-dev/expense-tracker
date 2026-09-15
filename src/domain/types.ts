@@ -79,8 +79,3 @@ export type CategoryTotal = {
   count: number;
 };
 
-/** One row of the per-day aggregate, used by the bar charts. */
-export type DailyTotal = {
-  date: IsoDate;
-  totalMinor: Minor;
-};
