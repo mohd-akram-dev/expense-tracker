@@ -281,3 +281,15 @@ export async function upsertExpense(expense: Expense): Promise<void> {
     expense.updatedAt
   );
 }
+
+/**
+ * The oldest date that still has an expense, so the Monthly picker can offer
+ * exactly the years the user has data for. Null when nothing has been logged.
+ */
+export async function getEarliestExpenseDate(): Promise<IsoDate | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ earliest: string | null }>(
+    'SELECT MIN(spent_on) AS earliest FROM expenses WHERE deleted_at IS NULL'
+  );
+  return row?.earliest ?? null;
+}

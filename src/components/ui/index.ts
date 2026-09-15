@@ -7,6 +7,7 @@ export { Input } from './input';
 export { ListRow } from './list-row';
 export { Screen } from './screen';
 export { Fab } from './fab';
+export { Select } from './select';
 export { Sheet } from './sheet';
 export { Text } from './text';
 
@@ -18,5 +19,6 @@ export type { InputProps } from './input';
 export type { ListRowProps } from './list-row';
 export type { ScreenProps } from './screen';
 export type { FabProps } from './fab';
+export type { SelectOption, SelectProps } from './select';
 export type { SheetProps } from './sheet';
 export type { TextProps } from './text';

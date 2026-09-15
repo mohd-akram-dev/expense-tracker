@@ -3,6 +3,8 @@ import {
   eachDayOfInterval,
   endOfMonth,
   format,
+  getMonth,
+  getYear,
   isSameMonth,
   parseISO,
   startOfMonth,
@@ -92,4 +94,27 @@ export function longDateLabel(date: IsoDate): string {
 
 export function isToday(date: IsoDate): boolean {
   return date === today();
+}
+
+/** Month names for the monthly picker, in the order `Date` numbers them (0 = January). */
+export const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+] as const;
+
+export function yearOf(date: IsoDate): number {
+  return getYear(fromIsoDate(date));
+}
+
+/** 0-indexed, matching `Date.getMonth()` and `MONTH_NAMES`. */
+export function monthOf(date: IsoDate): number {
+  return getMonth(fromIsoDate(date));
+}
+
+/**
+ * The first of a month, used as the anchor the Monthly screen stores. Always
+ * day 1, so stepping from the 31st never lands in the wrong month.
+ */
+export function monthAnchor(year: number, month: number): IsoDate {
+  return toIsoDate(new Date(year, month, 1));
 }

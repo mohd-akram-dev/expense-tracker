@@ -3,19 +3,30 @@ import { useCallback, useMemo, useState } from 'react';
 import { View } from 'react-native';
 
 import { ExpenseRow } from '@/components/expense/expense-row';
-import { Button, Card, Divider, EmptyState, Input, Screen, Text } from '@/components/ui';
+import { Card, Divider, EmptyState, Input, Screen, Select, Text } from '@/components/ui';
 import { listCategories } from '@/db/repositories/categoryRepo';
 import {
   getCategoryBreakdown,
+  getEarliestExpenseDate,
   getTotalInRange,
   listExpensesInRange,
 } from '@/db/repositories/expenseRepo';
 import { CURRENCIES, averageMinor, formatMoney } from '@/domain/money';
-import { daysInRange, longDateLabel, monthLabel, monthRange, shiftMonth, toIsoDate } from '@/domain/period';
+import {
+  MONTH_NAMES,
+  daysInRange,
+  longDateLabel,
+  monthAnchor,
+  monthOf,
+  monthRange,
+  toIsoDate,
+  yearOf,
+} from '@/domain/period';
 import { useFocusQuery } from '@/hooks/use-focus-query';
 import { useCurrencyCode } from '@/store/settingsStore';
 import { useTheme } from '@/theme';
 
+import type { SelectOption } from '@/components/ui';
 import type { Category, CategoryTotal, Expense, IsoDate, Minor } from '@/domain/types';
 
 type MonthData = {
@@ -23,31 +34,56 @@ type MonthData = {
   expenses: Expense[];
   breakdown: CategoryTotal[];
   categories: Category[];
+  earliest: IsoDate | null;
 };
 
-const EMPTY: MonthData = { total: 0, expenses: [], breakdown: [], categories: [] };
+const EMPTY: MonthData = { total: 0, expenses: [], breakdown: [], categories: [], earliest: null };
+
+const MONTH_OPTIONS: SelectOption<number>[] = MONTH_NAMES.map((name, index) => ({
+  value: index,
+  label: name,
+}));
 
 export default function MonthlyScreen() {
   const { colors, spacing, radius } = useTheme();
   const currency = CURRENCIES[useCurrencyCode()];
 
-  const [anchor, setAnchor] = useState(() => toIsoDate(new Date()));
+  // Defaults to the month containing today.
+  const [anchor, setAnchor] = useState<IsoDate>(() => toIsoDate(new Date()));
   const [search, setSearch] = useState('');
 
   const range = useMemo(() => monthRange(anchor), [anchor]);
 
   const query = useCallback(async (): Promise<MonthData> => {
-    const [total, expenses, breakdown, categories] = await Promise.all([
+    const [total, expenses, breakdown, categories, earliest] = await Promise.all([
       getTotalInRange(range),
       listExpensesInRange(range),
       getCategoryBreakdown(range),
       listCategories(),
+      getEarliestExpenseDate(),
     ]);
-    return { total, expenses, breakdown, categories };
+    return { total, expenses, breakdown, categories, earliest };
   }, [range]);
 
   const { data } = useFocusQuery(query, EMPTY);
   const categoryById = new Map(data.categories.map((category) => [category.id, category]));
+
+  const selectedYear = yearOf(anchor);
+  const selectedMonth = monthOf(anchor);
+
+  // Offer every year from the oldest expense up to this one — and always the
+  // year being viewed, so the dropdown can never exclude its own value.
+  const yearOptions = useMemo((): SelectOption<number>[] => {
+    const thisYear = new Date().getFullYear();
+    const oldest = data.earliest ? yearOf(data.earliest) : thisYear;
+    const from = Math.min(oldest, selectedYear);
+    const to = Math.max(thisYear, selectedYear);
+
+    return Array.from({ length: to - from + 1 }, (_, index) => {
+      const year = to - index;
+      return { value: year, label: String(year) };
+    });
+  }, [data.earliest, selectedYear]);
 
   // Filtering in memory rather than re-querying: the month is already loaded,
   // and a personal month is a few dozen rows.
@@ -63,20 +99,27 @@ export default function MonthlyScreen() {
   const byDay = groupByDay(visible);
   const dailyAverage = averageMinor(data.total, daysInRange(range));
 
-  function step(by: number) {
-    setAnchor(toIsoDate(shiftMonth(anchor, by)));
-  }
-
   return (
-    <Screen
-      title={monthLabel(anchor)}
-      eyebrow="Monthly"
-      action={
-        <View style={{ flexDirection: 'row', gap: spacing.xs }}>
-          <Button label="‹" variant="secondary" size="sm" onPress={() => step(-1)} />
-          <Button label="›" variant="secondary" size="sm" onPress={() => step(1)} />
+    <Screen title="Monthly">
+      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+        <View style={{ flex: 2 }}>
+          <Select
+            title="Month"
+            value={selectedMonth}
+            options={MONTH_OPTIONS}
+            onChange={(month) => setAnchor(monthAnchor(selectedYear, month))}
+          />
         </View>
-      }>
+        <View style={{ flex: 1 }}>
+          <Select
+            title="Year"
+            value={selectedYear}
+            options={yearOptions}
+            onChange={(year) => setAnchor(monthAnchor(year, selectedMonth))}
+          />
+        </View>
+      </View>
+
       <Card>
         <View style={{ gap: spacing.xs }}>
           <Text variant="label" tone="textFaint">

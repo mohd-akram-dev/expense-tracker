@@ -56,8 +56,8 @@ export function AmountKeypad({ value, onChange, currency }: AmountKeypadProps) {
 
   return (
     <View style={{ gap: spacing.sm }}>
-      <View style={[styles.display, { paddingVertical: spacing.lg, gap: spacing.xs }]}>
-        <Text variant="title" tone="textFaint">
+      <View style={[styles.display, { paddingVertical: spacing.sm, gap: spacing.xs }]}>
+        <Text variant="heading" tone="textFaint">
           {currency.symbol}
         </Text>
         <Text variant="display" tone={value ? 'text' : 'textFaint'} numberOfLines={1} adjustsFontSizeToFit>
@@ -93,12 +93,13 @@ export function AmountKeypad({ value, onChange, currency }: AmountKeypadProps) {
 
 const styles = StyleSheet.create({
   display: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  // Three columns: (100% - two 8px gaps) / 3
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  // Three columns: (100% - two 6px gaps) / 3. Kept short enough that the whole
+  // add-expense screen fits on a phone without scrolling.
   key: {
     width: '31.5%',
     flexGrow: 1,
-    height: 56,
+    height: 46,
     alignItems: 'center',
     justifyContent: 'center',
   },

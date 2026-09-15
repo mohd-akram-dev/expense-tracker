@@ -115,9 +115,19 @@ export default function ExpenseModal() {
         )}
       </View>
 
+      {/* Still a ScrollView so a small phone or a large font scale can reach the
+          bottom, but sized so it should not need to scroll on a normal screen. */}
       <ScrollView
-        contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxxl }}
+        contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
         keyboardShouldPersistTaps="handled">
+        <Button
+          label={isToday(spentOn) ? `Today · ${longDateLabel(spentOn)}` : longDateLabel(spentOn)}
+          icon="calendar-outline"
+          variant="secondary"
+          block
+          onPress={() => setShowDatePicker(true)}
+        />
+
         <AmountKeypad value={amount} onChange={setAmount} currency={currency} />
 
         <ChipRow>
@@ -133,33 +143,13 @@ export default function ExpenseModal() {
         </ChipRow>
 
         <Input
-          label="What was it for?"
-          placeholder={categories.find((c) => c.id === categoryId)?.name ?? 'Optional'}
+          placeholder={categories.find((c) => c.id === categoryId)?.name ?? 'What was it for?'}
           value={title}
           onChangeText={setTitle}
           returnKeyType="done"
         />
 
-        <View style={{ gap: spacing.xs }}>
-          <Text variant="label" tone="textMuted">
-            Date
-          </Text>
-          <Button
-            label={isToday(spentOn) ? `Today · ${longDateLabel(spentOn)}` : longDateLabel(spentOn)}
-            icon="calendar-outline"
-            variant="secondary"
-            block
-            onPress={() => setShowDatePicker(true)}
-          />
-        </View>
-
-        <Input
-          label="Note"
-          placeholder="Optional"
-          value={note}
-          onChangeText={setNote}
-          multiline
-        />
+        <Input placeholder="Note (optional)" value={note} onChangeText={setNote} />
       </ScrollView>
 
       <View style={{ padding: spacing.lg, paddingTop: 0 }}>
