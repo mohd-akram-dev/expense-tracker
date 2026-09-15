@@ -22,7 +22,7 @@ export const DEFAULT_CATEGORIES: readonly Category[] = [
 ];
 
 /** Settings rows written on first launch. Values are always stored as TEXT. */
-const DEFAULT_SETTINGS: ReadonlyArray<[key: string, value: string]> = [
+const DEFAULT_SETTINGS: readonly (readonly [key: string, value: string])[] = [
   ['currency', DEFAULT_CURRENCY],
   ['theme', 'system'],
   ['diary_lock_enabled', 'false'],

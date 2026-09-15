@@ -1,10 +1,23 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
+import { Platform, StyleSheet } from 'react-native';
 
 import { useTheme } from '@/theme';
 
+import type { ComponentProps } from 'react';
+
+type IoniconName = ComponentProps<typeof Ionicons>['name'];
+
+/** Outline when idle, filled when active — the cheapest way to make a tab bar feel alive. */
+const TABS: { name: string; title: string; icon: IoniconName; iconActive: IoniconName }[] = [
+  { name: 'index', title: 'Home', icon: 'home-outline', iconActive: 'home' },
+  { name: 'monthly', title: 'Monthly', icon: 'bar-chart-outline', iconActive: 'bar-chart' },
+  { name: 'diary', title: 'Diary', icon: 'book-outline', iconActive: 'book' },
+  { name: 'settings', title: 'Settings', icon: 'settings-outline', iconActive: 'settings' },
+];
+
 export default function TabsLayout() {
-  const { colors } = useTheme();
+  const { colors, typography } = useTheme();
 
   return (
     <Tabs
@@ -12,36 +25,29 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textFaint,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
+        tabBarLabelStyle: typography.caption,
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          // Android's default bar is cramped once labels are on.
+          height: Platform.OS === 'android' ? 62 : undefined,
+          paddingTop: 6,
+          paddingBottom: Platform.OS === 'android' ? 8 : undefined,
+        },
       }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="monthly"
-        options={{
-          title: 'Monthly',
-          tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart-outline" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="diary"
-        options={{
-          title: 'Diary',
-          tabBarIcon: ({ color, size }) => <Ionicons name="book-outline" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" color={color} size={size} />,
-        }}
-      />
+      {TABS.map((tab) => (
+        <Tabs.Screen
+          key={tab.name}
+          name={tab.name}
+          options={{
+            title: tab.title,
+            tabBarIcon: ({ color, size, focused }) => (
+              <Ionicons name={focused ? tab.iconActive : tab.icon} color={color} size={size} />
+            ),
+          }}
+        />
+      ))}
     </Tabs>
   );
 }
