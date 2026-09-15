@@ -1,4 +1,5 @@
-import { File, Paths } from 'expo-file-system';
+import { Directory, File, Paths } from 'expo-file-system';
+import { Platform } from 'react-native';
 import * as Sharing from 'expo-sharing';
 
 import { LATEST_SCHEMA_VERSION } from '@/db/migrations';
@@ -47,40 +48,99 @@ async function buildBackup(): Promise<Backup> {
 
 export type ExportResult = {
   fileName: string;
+  /** where it went, for the confirmation message */
+  location: string;
   expenses: number;
   diary: number;
   /** when the export completed, for the "last backed up" line in Settings */
   at: string;
 };
 
+/** Returned instead of a result when the user backs out of the folder picker. */
+export const CANCELLED = 'cancelled' as const;
+export type Cancelled = typeof CANCELLED;
+
+function backupFileName(): string {
+  return `expense-diary-${toIsoDate(new Date())}.json`;
+}
+
 /**
- * Writes the backup to a file and opens the share sheet, so it can go to Drive,
- * WhatsApp, or Files — anywhere off this device.
+ * The picker throws rather than returning a flag when the user backs out, and
+ * the message differs per platform — so anything mentioning cancellation is
+ * treated as "they changed their mind", not as a failure worth alerting about.
  */
-export async function exportBackup(): Promise<ExportResult> {
+function isCancellation(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /cancel/i.test(message);
+}
+
+/**
+ * Writes the backup into a folder the user chooses — Downloads, say — so the
+ * file lives in their own storage and can be found later in any file manager.
+ *
+ * This goes through Android's Storage Access Framework, which is why it needs
+ * no storage permission: the user granting access *is* the folder picker.
+ */
+export async function saveBackupToDevice(): Promise<ExportResult | Cancelled> {
   const backup = await buildBackup();
-  const fileName = `expense-diary-${toIsoDate(new Date())}.json`;
+  const fileName = backupFileName();
 
-  const file = new File(Paths.cache, fileName);
-  if (file.exists) file.delete();
-  file.create();
-  file.write(JSON.stringify(backup, null, 2));
-
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(file.uri, {
-      mimeType: 'application/json',
-      dialogTitle: 'Save your backup',
-      UTI: 'public.json',
-    });
+  let directory: Directory;
+  try {
+    directory = await Directory.pickDirectoryAsync();
+  } catch (error) {
+    if (isCancellation(error)) return CANCELLED;
+    throw error;
   }
+
+  const file = directory.createFile(fileName, 'application/json');
+  file.write(JSON.stringify(backup, null, 2));
 
   return {
     fileName,
+    location: directory.name || 'your chosen folder',
     expenses: backup.expenses.length,
     diary: backup.diary.length,
     at: backup.exportedAt,
   };
 }
+
+/**
+ * Sends a copy somewhere off this phone — Drive, WhatsApp, email. Saving to
+ * the device protects against a reinstall; only this protects against losing
+ * the phone itself.
+ */
+export async function shareBackup(): Promise<ExportResult | Cancelled> {
+  const backup = await buildBackup();
+  const fileName = backupFileName();
+
+  // Staged in the cache because the share sheet needs a real file to hand over.
+  const file = new File(Paths.cache, fileName);
+  if (file.exists) file.delete();
+  file.create();
+  file.write(JSON.stringify(backup, null, 2));
+
+  if (!(await Sharing.isAvailableAsync())) {
+    throw new Error('Sharing is not available on this device.');
+  }
+
+  await Sharing.shareAsync(file.uri, {
+    mimeType: 'application/json',
+    dialogTitle: 'Send your backup',
+    UTI: 'public.json',
+  });
+
+  return {
+    fileName,
+    location: 'the app you picked',
+    expenses: backup.expenses.length,
+    diary: backup.diary.length,
+    at: backup.exportedAt,
+  };
+}
+
+/** Saving into a chosen folder is Android's Storage Access Framework. */
+export const CAN_SAVE_TO_DEVICE = Platform.OS === 'android';
 
 export type ImportResult = { expenses: number; diary: number };
 

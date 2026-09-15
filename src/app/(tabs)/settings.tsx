@@ -7,7 +7,13 @@ import { wipeAllData } from '@/db/client';
 import { LATEST_SCHEMA_VERSION } from '@/db/migrations';
 import { CURRENCIES, formatMoney, parseAmount, toMajor } from '@/domain/money';
 import { daysSince } from '@/domain/period';
-import { exportBackup, importBackup } from '@/services/backup';
+import {
+  CANCELLED,
+  CAN_SAVE_TO_DEVICE,
+  importBackup,
+  saveBackupToDevice,
+  shareBackup,
+} from '@/services/backup';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useTheme } from '@/theme';
 
@@ -28,7 +34,7 @@ export default function SettingsScreen() {
   const [currencySheetOpen, setCurrencySheetOpen] = useState(false);
   const [budgetSheetOpen, setBudgetSheetOpen] = useState(false);
   const [budgetDraft, setBudgetDraft] = useState('');
-  const [busy, setBusy] = useState<'export' | 'import' | null>(null);
+  const [busy, setBusy] = useState<'save' | 'share' | 'import' | null>(null);
 
   const theme = useSettingsStore((state) => state.theme);
   const currencyCode = useSettingsStore((state) => state.currency);
@@ -41,17 +47,19 @@ export default function SettingsScreen() {
 
   const currency = CURRENCIES[currencyCode];
 
-  async function handleExport() {
-    setBusy('export');
+  async function runExport(kind: 'save' | 'share') {
+    setBusy(kind);
     try {
-      const result = await exportBackup();
+      const result = kind === 'save' ? await saveBackupToDevice() : await shareBackup();
+      if (result === CANCELLED) return;
+
       await markBackedUp(result.at);
       Alert.alert(
-        'Backup ready',
-        `${result.expenses} expenses and ${result.diary} diary entries saved as ${result.fileName}.`
+        'Backup saved',
+        `${result.expenses} expenses and ${result.diary} diary entries written to ${result.fileName} in ${result.location}.`
       );
     } catch (error) {
-      Alert.alert('Export failed', messageOf(error));
+      Alert.alert('Backup failed', messageOf(error));
     } finally {
       setBusy(null);
     }
@@ -143,12 +151,30 @@ export default function SettingsScreen() {
       </Card>
 
       <Card title="Your data" flush>
+        {CAN_SAVE_TO_DEVICE ? (
+          <>
+            <ListRow
+              icon="download-outline"
+              title={busy === 'save' ? 'Saving…' : 'Save backup to phone'}
+              subtitle={backup.label}
+              destructive={backup.stale}
+              onPress={busy ? undefined : () => runExport('save')}
+              chevron
+            />
+            <Divider inset={spacing.lg} />
+          </>
+        ) : null}
+
         <ListRow
-          icon="download-outline"
-          title={busy === 'export' ? 'Exporting…' : 'Export backup'}
-          subtitle={backup.label}
-          destructive={backup.stale}
-          onPress={busy ? undefined : handleExport}
+          icon="share-outline"
+          title={busy === 'share' ? 'Preparing…' : 'Send a copy elsewhere'}
+          subtitle={
+            CAN_SAVE_TO_DEVICE
+              ? 'Drive, WhatsApp — survives losing the phone'
+              : backup.label
+          }
+          destructive={!CAN_SAVE_TO_DEVICE && backup.stale}
+          onPress={busy ? undefined : () => runExport('share')}
           chevron
         />
         <Divider inset={spacing.lg} />
