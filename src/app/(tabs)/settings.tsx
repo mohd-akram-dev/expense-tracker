@@ -1,9 +1,12 @@
+import { File } from 'expo-file-system';
 import { useState } from 'react';
-import { Switch, View } from 'react-native';
+import { Alert, View } from 'react-native';
 
 import { Card, Chip, ChipRow, Divider, ListRow, Screen, Sheet, Text } from '@/components/ui';
+import { wipeAllData } from '@/db/client';
 import { LATEST_SCHEMA_VERSION } from '@/db/migrations';
 import { CURRENCIES } from '@/domain/money';
+import { exportBackup, importBackup } from '@/services/backup';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useTheme } from '@/theme';
 
@@ -17,89 +20,122 @@ const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
 ];
 
 export default function SettingsScreen() {
-  const { colors, spacing } = useTheme();
+  const { spacing } = useTheme();
   const [currencySheetOpen, setCurrencySheetOpen] = useState(false);
+  const [busy, setBusy] = useState<'export' | 'import' | null>(null);
 
   const theme = useSettingsStore((state) => state.theme);
   const currency = useSettingsStore((state) => state.currency);
-  const diaryLockEnabled = useSettingsStore((state) => state.diaryLockEnabled);
   const setTheme = useSettingsStore((state) => state.setTheme);
   const setCurrency = useSettingsStore((state) => state.setCurrency);
-  const setDiaryLockEnabled = useSettingsStore((state) => state.setDiaryLockEnabled);
+
+  async function handleExport() {
+    setBusy('export');
+    try {
+      const result = await exportBackup();
+      Alert.alert(
+        'Backup ready',
+        `${result.expenses} expenses and ${result.diary} diary entries saved as ${result.fileName}.`
+      );
+    } catch (error) {
+      Alert.alert('Export failed', messageOf(error));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleImport() {
+    try {
+      const picked = await File.pickFileAsync({ mimeTypes: ['application/json'] });
+      if (picked.canceled) return;
+
+      setBusy('import');
+      const result = await importBackup(await picked.result.text());
+      Alert.alert(
+        'Backup restored',
+        `Merged ${result.expenses} expenses and ${result.diary} diary entries.`
+      );
+    } catch (error) {
+      Alert.alert('Import failed', messageOf(error));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function confirmWipe() {
+    Alert.alert(
+      'Erase everything?',
+      'All expenses and diary entries will be deleted from this phone. Export a backup first if you might want them back.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Erase',
+          style: 'destructive',
+          onPress: async () => {
+            await wipeAllData();
+            Alert.alert('Done', 'Everything has been erased.');
+          },
+        },
+      ]
+    );
+  }
 
   return (
     <Screen title="Settings">
       <Card title="Appearance">
-        <View style={{ gap: spacing.sm }}>
-          <Text variant="body" tone="textMuted">
-            Theme
-          </Text>
-          <ChipRow>
-            {THEME_OPTIONS.map((option) => (
-              <Chip
-                key={option.value}
-                label={option.label}
-                selected={theme === option.value}
-                onPress={() => setTheme(option.value)}
-              />
-            ))}
-          </ChipRow>
-        </View>
+        <ChipRow>
+          {THEME_OPTIONS.map((option) => (
+            <Chip
+              key={option.value}
+              label={option.label}
+              selected={theme === option.value}
+              onPress={() => setTheme(option.value)}
+            />
+          ))}
+        </ChipRow>
       </Card>
 
       <Card title="General" flush>
-        <View>
-          <ListRow
-            icon="cash-outline"
-            title="Currency"
-            subtitle={`${CURRENCIES[currency].symbol} · ${currency}`}
-            onPress={() => setCurrencySheetOpen(true)}
-            chevron
-          />
-          <Divider inset={spacing.lg} />
-          <ListRow
-            icon="pricetags-outline"
-            title="Categories"
-            subtitle="Add, rename and reorder"
-            onPress={() => undefined}
-            chevron
-          />
-          <Divider inset={spacing.lg} />
-          <ListRow
-            icon="lock-closed-outline"
-            title="Lock the diary"
-            subtitle="Ask for a passcode before opening"
-            right={
-              <Switch
-                value={diaryLockEnabled}
-                onValueChange={setDiaryLockEnabled}
-                trackColor={{ true: colors.primary, false: colors.borderStrong }}
-              />
-            }
-          />
-        </View>
+        <ListRow
+          icon="cash-outline"
+          title="Currency"
+          subtitle={`${CURRENCIES[currency].symbol} · ${currency}`}
+          onPress={() => setCurrencySheetOpen(true)}
+          chevron
+        />
       </Card>
 
       <Card title="Your data" flush>
-        <View>
-          <ListRow icon="download-outline" title="Export backup" subtitle="JSON · built in Phase 4" chevron />
-          <Divider inset={spacing.lg} />
-          <ListRow icon="document-text-outline" title="Export CSV" subtitle="Built in Phase 4" chevron />
-          <Divider inset={spacing.lg} />
-          <ListRow icon="cloud-upload-outline" title="Import backup" subtitle="Built in Phase 4" chevron />
-          <Divider inset={spacing.lg} />
-          <ListRow icon="trash-outline" title="Erase all data" destructive />
-        </View>
+        <ListRow
+          icon="download-outline"
+          title={busy === 'export' ? 'Exporting…' : 'Export backup'}
+          subtitle="Save a JSON file to Drive, WhatsApp or Files"
+          onPress={busy ? undefined : handleExport}
+          chevron
+        />
+        <Divider inset={spacing.lg} />
+        <ListRow
+          icon="cloud-upload-outline"
+          title={busy === 'import' ? 'Importing…' : 'Restore backup'}
+          subtitle="Merges by id — importing twice is safe"
+          onPress={busy ? undefined : handleImport}
+          chevron
+        />
+        <Divider inset={spacing.lg} />
+        <ListRow
+          icon="trash-outline"
+          title="Erase all data"
+          subtitle="Cannot be undone"
+          onPress={confirmWipe}
+          destructive
+        />
       </Card>
 
       <Text variant="caption" tone="textFaint" center>
-        Expense Diary · schema v{LATEST_SCHEMA_VERSION} · everything stays on this device
+        Expense Diary · v{LATEST_SCHEMA_VERSION} · everything stays on this phone
       </Text>
 
-      <Sheet
-        visible={currencySheetOpen}
-        onClose={() => setCurrencySheetOpen(false)}
-        title="Currency">
+      <Sheet visible={currencySheetOpen} onClose={() => setCurrencySheetOpen(false)} title="Currency">
         <View>
           {(Object.keys(CURRENCIES) as CurrencyCode[]).map((code, index) => (
             <View key={code}>
@@ -124,4 +160,8 @@ export default function SettingsScreen() {
       </Sheet>
     </Screen>
   );
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : 'Something went wrong.';
 }

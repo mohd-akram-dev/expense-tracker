@@ -3,7 +3,10 @@
 Offline-first expense tracker and personal diary. Android + iOS from one Expo codebase.
 All data lives on the device in SQLite — no server, no account, no sync.
 
-Architecture and phase plan: [`docs/EXPENSE_DIARY_APP_PLAN.md`](docs/EXPENSE_DIARY_APP_PLAN.md)
+What it does: log an expense in two taps, see today and this month, browse and search
+by month, keep a plain diary, and export a backup.
+
+Original (larger) plan, kept for reference: [`docs/EXPENSE_DIARY_APP_PLAN.md`](docs/EXPENSE_DIARY_APP_PLAN.md)
 Project rules: [`AGENTS.md`](AGENTS.md)
 
 ## Develop
@@ -53,10 +56,8 @@ npx eas-cli@latest build:view
 
 | Profile | Output | Use for |
 |---|---|---|
-| `preview` | `.apk` | sideloading onto your own phone |
-| `development` | dev-client `.apk` | debugging with native modules Expo Go lacks |
+| `preview` | `.apk` | sideloading onto your own phone, sharing with friends |
 | `production` | `.aab` | Play Store upload |
-| `simulator` | iOS `.app` | free iOS simulator testing, needs a Mac to run |
 
 ## iOS
 
