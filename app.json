@@ -8,7 +8,7 @@
     "scheme": "expensediary",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "com.routadigital.expensediary",
+      "bundleIdentifier": "com.mdakku.expensediary",
       "supportsTablet": true
     },
     "android": {
@@ -19,7 +19,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.routadigital.expensediary"
+      "package": "com.mdakku.expensediary"
     },
     "web": {
       "output": "static",
