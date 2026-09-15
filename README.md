@@ -1,56 +1,70 @@
-# Welcome to your Expo app 👋
+# Expense Diary
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Offline-first expense tracker and personal diary. Android + iOS from one Expo codebase.
+All data lives on the device in SQLite — no server, no account, no sync.
 
-## Get started
+Architecture and phase plan: [`docs/EXPENSE_DIARY_APP_PLAN.md`](docs/EXPENSE_DIARY_APP_PLAN.md)
+Project rules: [`AGENTS.md`](AGENTS.md)
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Develop
 
 ```bash
-npm run reset-project
+npm install
+npm start              # then scan the QR with Expo Go
+npm run typecheck
+npm run lint
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+If your phone and PC are on different networks (or the QR just hangs), use a tunnel:
 
-### Other setup steps
+```bash
+npx expo start --tunnel
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## Build an installable Android APK
 
-## Learn more
+Compiles on Expo's servers. Needs a free Expo account — no Android Studio, no JDK, no Mac.
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+npx eas-cli@latest login                              # or `register` for a new account
+npx eas-cli@latest init                               # links the project, writes the project id
+npx eas-cli@latest build -p android --profile preview
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+The first build asks **"Generate a new Android Keystore?"** — answer **yes**. EAS creates and
+stores the signing key for you. Keep the same key for every later build or Android will refuse
+to install the update over the old one.
 
-## Join the community
+The build takes roughly 10–20 minutes on the free queue. When it finishes the CLI prints a URL,
+and the build also appears at <https://expo.dev> under your account. Open that URL on the phone
+and tap download, or scan the QR the CLI prints.
 
-Join our community of developers creating universal apps.
+On the phone, allow **"Install unknown apps"** for your browser when Android prompts — the APK
+is not from the Play Store, so this is expected.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### Checking a build later
+
+```bash
+npx eas-cli@latest build:list
+npx eas-cli@latest build:view
+```
+
+## Build profiles
+
+| Profile | Output | Use for |
+|---|---|---|
+| `preview` | `.apk` | sideloading onto your own phone |
+| `development` | dev-client `.apk` | debugging with native modules Expo Go lacks |
+| `production` | `.aab` | Play Store upload |
+| `simulator` | iOS `.app` | free iOS simulator testing, needs a Mac to run |
+
+## iOS
+
+A build that installs on a real iPhone requires an **Apple Developer account ($99/year)**:
+
+```bash
+npx eas-cli@latest build -p ios --profile preview
+```
+
+Without one, the free option is `--profile simulator`, which only runs in Xcode's simulator
+on macOS.
