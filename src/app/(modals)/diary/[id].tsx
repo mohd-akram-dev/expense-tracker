@@ -16,6 +16,8 @@ import { fromIsoDate, isToday, longDateLabel, toIsoDate, today } from '@/domain/
 import { useUndoStore } from '@/store/undoStore';
 import { useTheme } from '@/theme';
 
+import type { DiaryStatus } from '@/domain/types';
+
 /** Add and edit share this screen. The id is the literal `new` when adding. */
 export default function DiaryModal() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -27,6 +29,8 @@ export default function DiaryModal() {
   const [entryDate, setEntryDate] = useState(today());
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  // New entries start pending — the whole point is that you come back and tick them.
+  const [status, setStatus] = useState<DiaryStatus>('pending');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -38,6 +42,7 @@ export default function DiaryModal() {
       setEntryDate(entry.entryDate);
       setTitle(entry.title ?? '');
       setBody(entry.body);
+      setStatus(entry.status);
     });
   }, [id, isNew]);
 
@@ -48,7 +53,7 @@ export default function DiaryModal() {
 
     setSaving(true);
     try {
-      const payload = { entryDate, title: title.trim() || null, body: body.trim() };
+      const payload = { entryDate, title: title.trim() || null, body: body.trim(), status };
 
       if (isNew) {
         await createEntry(payload);
@@ -60,7 +65,7 @@ export default function DiaryModal() {
     } finally {
       setSaving(false);
     }
-  }, [body, entryDate, id, isNew, title]);
+  }, [body, entryDate, id, isNew, status, title]);
 
   const confirmDelete = useCallback(() => {
     Alert.alert('Delete this entry?', 'You can undo this straight afterwards.', [
@@ -107,6 +112,14 @@ export default function DiaryModal() {
             variant="secondary"
             block
             onPress={() => setShowDatePicker(true)}
+          />
+
+          <Button
+            label={status === 'completed' ? 'Completed' : 'Mark as completed'}
+            icon={status === 'completed' ? 'checkmark-circle' : 'ellipse-outline'}
+            variant={status === 'completed' ? 'primary' : 'secondary'}
+            block
+            onPress={() => setStatus(status === 'completed' ? 'pending' : 'completed')}
           />
 
           <Input

@@ -170,7 +170,7 @@ export default function SettingsScreen() {
       </Card>
 
       <Text variant="caption" tone="textFaint" center>
-        Expense Diary · v{LATEST_SCHEMA_VERSION} · everything stays on this phone
+        Expense Diary · schema v{LATEST_SCHEMA_VERSION} · everything stays on this phone
       </Text>
 
       <Sheet

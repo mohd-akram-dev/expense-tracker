@@ -33,7 +33,8 @@ export type Expense = {
 
 export type Mood = 'great' | 'good' | 'ok' | 'low' | 'bad';
 
-export const MOODS: readonly Mood[] = ['great', 'good', 'ok', 'low', 'bad'];
+/** A diary entry is something to do until it is done. */
+export type DiaryStatus = 'pending' | 'completed';
 
 export type DiaryEntry = {
   id: string;
@@ -41,6 +42,7 @@ export type DiaryEntry = {
   title: string | null;
   body: string;
   mood: Mood | null;
+  status: DiaryStatus;
   createdAt: IsoTimestamp;
   updatedAt: IsoTimestamp;
 };
@@ -61,6 +63,8 @@ export type NewDiaryEntry = {
   title?: string | null;
   body: string;
   mood?: Mood | null;
+  /** defaults to pending when omitted */
+  status?: DiaryStatus;
 };
 
 export type DiaryEntryPatch = Partial<NewDiaryEntry>;
