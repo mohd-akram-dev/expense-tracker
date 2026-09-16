@@ -5,6 +5,7 @@ import { Alert, View } from 'react-native';
 
 import { Button, Card, Chip, ChipRow, Divider, Input, ListRow, Screen, Sheet, Text } from '@/components/ui';
 import { wipeAllData } from '@/db/client';
+import { listPendingReminders } from '@/db/repositories/diaryRepo';
 import { LATEST_SCHEMA_VERSION } from '@/db/migrations';
 import { CURRENCIES, formatMoney, parseAmount, toMajor } from '@/domain/money';
 import { dateTimeLabel, daysSince } from '@/domain/period';
@@ -105,24 +106,37 @@ export default function SettingsScreen() {
   }
 
 
-  /** Reminders cannot be verified from a dev machine, so the app reports its own state. */
+  /**
+   * Compares what the database thinks should fire against what the OS is
+   * actually holding. Those two disagreeing is the whole diagnosis: if the
+   * database has a reminder the OS does not, scheduling failed; if both agree,
+   * the alarm exists and the problem is when Android chooses to deliver it.
+   */
   async function runNotificationCheck() {
-    const sent = await sendTestNotification(5);
-    const state = await notificationDiagnostics();
+    const [state, pending] = await Promise.all([
+      notificationDiagnostics(),
+      listPendingReminders(),
+    ]);
     setDiag(state);
 
-    Alert.alert(
-      sent ? 'Test sent' : 'Cannot send',
-      sent
-        ? `A notification should appear in about 5 seconds.
+    const lines = [
+      `Permission: ${state.status}`,
+      `Reminders saved in the app: ${pending.length}`,
+      `Alarms held by Android: ${state.scheduled}`,
+      state.nextAt ? `Next alarm: ${dateTimeLabel(state.nextAt)}` : 'Next alarm: none',
+      pending[0]?.remindAt ? `Next saved: ${dateTimeLabel(pending[0].remindAt)}` : 'Next saved: none',
+    ];
 
-Permission: ${state.status}
-Scheduled reminders: ${state.scheduled}`
-        : `Notifications are blocked for this app.
+    const verdict =
+      !state.granted
+        ? 'Android is blocking notifications for this app.'
+        : pending.length > 0 && state.scheduled === 0
+          ? 'The reminder was saved but never scheduled — that is a bug in the app.'
+          : pending.length > 0 && state.scheduled > 0
+            ? 'The alarm exists. If it did not arrive on time, Android delayed it.'
+            : 'No reminders are saved yet. Set one, then run this again.';
 
-Permission: ${state.status}
-Can ask again: ${state.canAskAgain ? 'yes' : 'no — turn them on in Android settings'}`
-    );
+    Alert.alert('Reminder check', `${lines.join('\n')}\n\n${verdict}`);
   }
 
   function confirmWipe() {
@@ -188,12 +202,23 @@ Can ask again: ${state.canAskAgain ? 'yes' : 'no — turn them on in Android set
 
       <Card title="Notifications" flush>
         <ListRow
-          icon="notifications-outline"
+          icon="paper-plane-outline"
           title="Send a test notification"
+          subtitle="Fires in 5 seconds"
+          onPress={async () => {
+            const sent = await sendTestNotification(5);
+            if (!sent) Alert.alert('Blocked', 'Notifications are turned off for this app.');
+          }}
+          chevron
+        />
+        <Divider inset={spacing.lg} />
+        <ListRow
+          icon="notifications-outline"
+          title="Check reminders"
           subtitle={
             diag
               ? `Permission ${diag.status} · ${diag.scheduled} scheduled${diag.nextAt ? ` · next ${dateTimeLabel(diag.nextAt)}` : ''}`
-              : 'Checks whether reminders can reach you'
+              : 'Compares saved reminders against Android alarms'
           }
           onPress={runNotificationCheck}
           chevron
