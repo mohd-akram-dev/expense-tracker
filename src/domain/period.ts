@@ -109,3 +109,35 @@ export function daysSince(timestamp: IsoTimestamp): number {
   const days = differenceInCalendarDays(new Date(), new Date(timestamp));
   return Number.isFinite(days) ? Math.max(0, days) : 0;
 }
+
+/**
+ * Combines a calendar date with a clock time into an ISO-8601 UTC timestamp.
+ *
+ * Everything else in the app is date-only; reminders are the first thing that
+ * needs a moment. Built through the local `Date` constructor so the stored UTC
+ * value means the wall-clock time the user actually picked.
+ */
+export function atTimeOn(date: IsoDate, hours: number, minutes: number): IsoTimestamp {
+  const d = fromIsoDate(date);
+  d.setHours(hours, minutes, 0, 0);
+  return d.toISOString();
+}
+
+/** The calendar date a timestamp falls on, in local time. */
+export function dateOf(timestamp: IsoTimestamp): IsoDate {
+  return toIsoDate(new Date(timestamp));
+}
+
+/** `"4:30 pm"` — how a reminder time is shown. */
+export function timeLabel(timestamp: IsoTimestamp): string {
+  return format(new Date(timestamp), 'h:mm a');
+}
+
+/** `"15 Sep, 4:30 pm"` for a reminder that is not on the entry's own day. */
+export function dateTimeLabel(timestamp: IsoTimestamp): string {
+  return format(new Date(timestamp), 'd MMM, h:mm a');
+}
+
+export function isPast(timestamp: IsoTimestamp): boolean {
+  return new Date(timestamp).getTime() <= Date.now();
+}

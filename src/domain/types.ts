@@ -43,6 +43,12 @@ export type DiaryEntry = {
   body: string;
   mood: Mood | null;
   status: DiaryStatus;
+  /** time on the day, ISO-8601 UTC. Null means a plain note with no time. */
+  startsAt: IsoTimestamp | null;
+  /** when to alert, ISO-8601 UTC. Null means no reminder. */
+  remindAt: IsoTimestamp | null;
+  /** the OS scheduler handle, so the alert can be cancelled or moved */
+  notificationId: string | null;
   createdAt: IsoTimestamp;
   updatedAt: IsoTimestamp;
 };
@@ -65,6 +71,9 @@ export type NewDiaryEntry = {
   mood?: Mood | null;
   /** defaults to pending when omitted */
   status?: DiaryStatus;
+  startsAt?: IsoTimestamp | null;
+  remindAt?: IsoTimestamp | null;
+  notificationId?: string | null;
 };
 
 export type DiaryEntryPatch = Partial<NewDiaryEntry>;

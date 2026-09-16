@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { Text, UndoToast } from '@/components/ui';
 import { initDatabase } from '@/db/client';
+import { sweepReminders } from '@/services/reminders';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useTheme } from '@/theme';
 
@@ -24,6 +25,9 @@ export default function RootLayout() {
   useEffect(() => {
     initDatabase()
       .then(hydrate)
+      // Re-schedules anything the OS lost to a reboot or a restored backup.
+      // Never allowed to block the app opening.
+      .then(() => sweepReminders().catch(() => 0))
       .catch(setError)
       .finally(() => {
         setReady(true);

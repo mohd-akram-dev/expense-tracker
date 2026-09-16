@@ -19,12 +19,16 @@ type DiaryRow = {
   body: string;
   mood: string | null;
   status: string;
+  starts_at: string | null;
+  remind_at: string | null;
+  notification_id: string | null;
   created_at: string;
   updated_at: string;
 };
 
 const SELECT_LIVE = `
-  SELECT id, entry_date, title, body, mood, status, created_at, updated_at
+  SELECT id, entry_date, title, body, mood, status, starts_at, remind_at, notification_id,
+         created_at, updated_at
   FROM diary_entries
   WHERE deleted_at IS NULL
 `;
@@ -38,6 +42,9 @@ function toEntry(row: DiaryRow): DiaryEntry {
     mood: (row.mood as Mood | null) ?? null,
     // Rows written before migration 002 read back as pending.
     status: row.status === 'completed' ? 'completed' : 'pending',
+    startsAt: row.starts_at,
+    remindAt: row.remind_at,
+    notificationId: row.notification_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -56,19 +63,27 @@ export async function createEntry(input: NewDiaryEntry): Promise<DiaryEntry> {
     body: input.body,
     mood: input.mood ?? null,
     status: input.status ?? 'pending',
+    startsAt: input.startsAt ?? null,
+    remindAt: input.remindAt ?? null,
+    notificationId: input.notificationId ?? null,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
 
   await db.runAsync(
-    `INSERT INTO diary_entries (id, entry_date, title, body, mood, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO diary_entries
+       (id, entry_date, title, body, mood, status, starts_at, remind_at, notification_id,
+        created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     entry.id,
     entry.entryDate,
     entry.title,
     entry.body,
     entry.mood,
     entry.status,
+    entry.startsAt,
+    entry.remindAt,
+    entry.notificationId,
     entry.createdAt,
     entry.updatedAt
   );
@@ -89,6 +104,9 @@ export async function updateEntry(id: string, patch: DiaryEntryPatch): Promise<v
     body: 'body',
     mood: 'mood',
     status: 'status',
+    startsAt: 'starts_at',
+    remindAt: 'remind_at',
+    notificationId: 'notification_id',
   };
 
   const sets: string[] = [];
@@ -208,14 +226,18 @@ export async function listAllEntries(): Promise<DiaryEntry[]> {
 export async function upsertEntry(entry: DiaryEntry): Promise<void> {
   const db = await getDb();
   await db.runAsync(
-    `INSERT INTO diary_entries (id, entry_date, title, body, mood, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO diary_entries
+       (id, entry_date, title, body, mood, status, starts_at, remind_at, notification_id,
+        created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        entry_date = excluded.entry_date,
        title      = excluded.title,
        body       = excluded.body,
        mood       = excluded.mood,
        status     = excluded.status,
+       starts_at  = excluded.starts_at,
+       remind_at  = excluded.remind_at,
        updated_at = excluded.updated_at
      WHERE excluded.updated_at > diary_entries.updated_at`,
     entry.id,
@@ -224,7 +246,30 @@ export async function upsertEntry(entry: DiaryEntry): Promise<void> {
     entry.body,
     entry.mood,
     entry.status === 'completed' ? 'completed' : 'pending',
+    entry.startsAt ?? null,
+    entry.remindAt ?? null,
     entry.createdAt,
     entry.updatedAt
   );
+}
+
+/**
+ * Live entries whose reminder is still in the future. Used by the startup
+ * sweep, which re-schedules anything the OS has lost — a reboot, a force stop,
+ * or a restored backup whose notification ids belong to another device.
+ */
+export async function listPendingReminders(): Promise<DiaryEntry[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<DiaryRow>(
+    `${SELECT_LIVE} AND remind_at IS NOT NULL AND remind_at > ?
+     ORDER BY remind_at ASC`,
+    now()
+  );
+  return rows.map(toEntry);
+}
+
+/** Records the handle the OS scheduler gave back, so the alert can be cancelled later. */
+export async function setNotificationId(id: string, notificationId: string | null): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('UPDATE diary_entries SET notification_id = ? WHERE id = ?', notificationId, id);
 }

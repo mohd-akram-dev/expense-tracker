@@ -3,6 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { migration as m001 } from './001_init';
 import { migration as m002 } from './002_diary_status';
 import { migration as m003 } from './003_category_icons';
+import { migration as m004 } from './004_diary_reminders';
 
 export type Migration = {
   /** 1-based, contiguous, and permanent once shipped. */
@@ -12,7 +13,7 @@ export type Migration = {
 };
 
 /** Ordered list of every migration. Append only. */
-const MIGRATIONS: Migration[] = [m001, m002, m003];
+const MIGRATIONS: Migration[] = [m001, m002, m003, m004];
 
 /**
  * Applies whatever migrations the open database has not seen yet, using

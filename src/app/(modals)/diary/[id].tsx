@@ -1,10 +1,10 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Button, Input, Text } from '@/components/ui';
+import { Button, Card, Input, ListRow, Text } from '@/components/ui';
 import {
   createEntry,
   deleteEntry,
@@ -12,11 +12,23 @@ import {
   restoreEntry,
   updateEntry,
 } from '@/db/repositories/diaryRepo';
-import { fromIsoDate, isToday, longDateLabel, toIsoDate, today } from '@/domain/period';
+import {
+  atTimeOn,
+  fromIsoDate,
+  isToday,
+  longDateLabel,
+  timeLabel,
+  toIsoDate,
+  today,
+} from '@/domain/period';
+import { clearReminder, syncReminder } from '@/services/reminders';
 import { useUndoStore } from '@/store/undoStore';
 import { useTheme } from '@/theme';
 
 import type { DiaryStatus } from '@/domain/types';
+
+/** Which picker is open. Only one can be at a time. */
+type Picker = 'date' | 'time' | null;
 
 /** Add and edit share this screen. The id is the literal `new` when adding. */
 export default function DiaryModal() {
@@ -31,7 +43,13 @@ export default function DiaryModal() {
   const [body, setBody] = useState('');
   // New entries start pending — the whole point is that you come back and tick them.
   const [status, setStatus] = useState<DiaryStatus>('pending');
-  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // A time turns the entry into an event; a reminder alerts you before it.
+  const [startsAt, setStartsAt] = useState<string | null>(null);
+  const [remind, setRemind] = useState(false);
+  const [picker, setPicker] = useState<Picker>(null);
+
+  const [notificationId, setNotificationId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -43,29 +61,57 @@ export default function DiaryModal() {
       setTitle(entry.title ?? '');
       setBody(entry.body);
       setStatus(entry.status);
+      setStartsAt(entry.startsAt);
+      setRemind(entry.remindAt !== null);
+      setNotificationId(entry.notificationId);
     });
   }, [id, isNew]);
 
   const canSave = body.trim().length > 0 && !saving;
+
+  /** The reminder fires at the event time. No time means no reminder. */
+  const remindAt = remind && startsAt ? startsAt : null;
 
   const save = useCallback(async () => {
     if (body.trim().length === 0) return;
 
     setSaving(true);
     try {
-      const payload = { entryDate, title: title.trim() || null, body: body.trim(), status };
+      const payload = {
+        entryDate,
+        title: title.trim() || null,
+        body: body.trim(),
+        status,
+        startsAt,
+        remindAt,
+      };
 
-      if (isNew) {
-        await createEntry(payload);
-      } else if (id) {
-        await updateEntry(id, payload);
+      const entryId = isNew ? (await createEntry(payload)).id : id;
+      if (!isNew && id) await updateEntry(id, payload);
+      if (!entryId) return;
+
+      // Scheduling happens after the row is saved, so a failed alert never
+      // costs the user their typing.
+      const scheduled = await syncReminder({
+        entryId,
+        title: payload.title,
+        body: payload.body,
+        remindAt,
+        previousNotificationId: notificationId,
+      });
+
+      if (remindAt && !scheduled) {
+        Alert.alert(
+          'Saved, but no reminder',
+          'Notifications are turned off for this app, or the time has already passed. The entry itself is saved.'
+        );
       }
 
       router.back();
     } finally {
       setSaving(false);
     }
-  }, [body, entryDate, id, isNew, status, title]);
+  }, [body, entryDate, id, isNew, notificationId, remindAt, startsAt, status, title]);
 
   const confirmDelete = useCallback(() => {
     Alert.alert('Delete this entry?', 'You can undo this straight afterwards.', [
@@ -77,7 +123,8 @@ export default function DiaryModal() {
           if (!id) return;
 
           await deleteEntry(id);
-          // The delete is soft, so restoring is just clearing deleted_at.
+          // Cancel the alert too, or it fires for something that no longer exists.
+          await clearReminder({ notificationId });
           offerUndo({
             label: `${title.trim() || 'Entry'} deleted`,
             undo: () => restoreEntry(id),
@@ -86,7 +133,7 @@ export default function DiaryModal() {
         },
       },
     ]);
-  }, [id, offerUndo, title]);
+  }, [id, notificationId, offerUndo, title]);
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
@@ -100,18 +147,16 @@ export default function DiaryModal() {
         )}
       </View>
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
-          contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}
+          contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
           keyboardShouldPersistTaps="handled">
           <Button
             label={isToday(entryDate) ? `Today · ${longDateLabel(entryDate)}` : longDateLabel(entryDate)}
             icon="calendar-outline"
             variant="secondary"
             block
-            onPress={() => setShowDatePicker(true)}
+            onPress={() => setPicker('date')}
           />
 
           <Button
@@ -121,6 +166,43 @@ export default function DiaryModal() {
             block
             onPress={() => setStatus(status === 'completed' ? 'pending' : 'completed')}
           />
+
+          <Card flush>
+            <ListRow
+              icon="time-outline"
+              title="Set a time"
+              subtitle={startsAt ? timeLabel(startsAt) : 'All day'}
+              onPress={() => setPicker('time')}
+              right={
+                <Switch
+                  value={startsAt !== null}
+                  onValueChange={(on) => {
+                    if (on) setPicker('time');
+                    else {
+                      setStartsAt(null);
+                      setRemind(false); // nothing to remind about without a time
+                    }
+                  }}
+                  trackColor={{ true: colors.primary, false: colors.borderStrong }}
+                />
+              }
+            />
+
+            {startsAt ? (
+              <ListRow
+                icon="notifications-outline"
+                title="Remind me"
+                subtitle={remind ? `Notification at ${timeLabel(startsAt)}` : 'Off'}
+                right={
+                  <Switch
+                    value={remind}
+                    onValueChange={setRemind}
+                    trackColor={{ true: colors.primary, false: colors.borderStrong }}
+                  />
+                }
+              />
+            ) : null}
+          </Card>
 
           <Input
             placeholder="Title (optional)"
@@ -143,20 +225,47 @@ export default function DiaryModal() {
         </View>
       </KeyboardAvoidingView>
 
-      {showDatePicker ? (
+      {picker === 'date' ? (
         <DateTimePicker
           value={fromIsoDate(entryDate)}
           mode="date"
-          maximumDate={new Date()}
           display={Platform.OS === 'ios' ? 'inline' : 'default'}
           onChange={(event, date) => {
-            if (Platform.OS === 'android') setShowDatePicker(false);
-            if (event.type === 'set' && date) setEntryDate(toIsoDate(date));
+            if (Platform.OS === 'android') setPicker(null);
+            if (event.type !== 'set' || !date) return;
+
+            const next = toIsoDate(date);
+            setEntryDate(next);
+            // Keep the clock time but move it onto the new day.
+            if (startsAt) {
+              const at = new Date(startsAt);
+              setStartsAt(atTimeOn(next, at.getHours(), at.getMinutes()));
+            }
+          }}
+        />
+      ) : null}
+
+      {picker === 'time' ? (
+        <DateTimePicker
+          value={startsAt ? new Date(startsAt) : defaultReminderTime()}
+          mode="time"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(event, date) => {
+            if (Platform.OS === 'android') setPicker(null);
+            if (event.type !== 'set' || !date) return;
+            setStartsAt(atTimeOn(entryDate, date.getHours(), date.getMinutes()));
           }}
         />
       ) : null}
     </SafeAreaView>
   );
+}
+
+/** Opens the time picker at the next round hour rather than the current minute. */
+function defaultReminderTime(): Date {
+  const d = new Date();
+  d.setHours(d.getHours() + 1, 0, 0, 0);
+  return d;
 }
 
 const styles = StyleSheet.create({

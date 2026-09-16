@@ -7,7 +7,7 @@ import { Pressable, View } from 'react-native';
 import { Card, Chip, ChipRow, EmptyState, Input, Screen, Text } from '@/components/ui';
 import { Fab } from '@/components/ui/fab';
 import { listEntries, searchEntries, setEntryStatus } from '@/db/repositories/diaryRepo';
-import { isToday, longDateLabel } from '@/domain/period';
+import { isPast, isToday, longDateLabel, timeLabel } from '@/domain/period';
 import { useFocusQuery } from '@/hooks/use-focus-query';
 import { useTheme } from '@/theme';
 
@@ -104,9 +104,19 @@ export default function DiaryScreen() {
                   </Pressable>
 
                   <View style={{ flex: 1, gap: spacing.xs, opacity: done ? 0.55 : 1 }}>
-                    <Text variant="label" tone={done ? 'success' : 'primary'}>
-                      {isToday(entry.entryDate) ? 'Today' : longDateLabel(entry.entryDate)}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                      <Text variant="label" tone={done ? 'success' : 'primary'}>
+                        {isToday(entry.entryDate) ? 'Today' : longDateLabel(entry.entryDate)}
+                        {entry.startsAt ? ` · ${timeLabel(entry.startsAt)}` : ''}
+                      </Text>
+                      {entry.remindAt && !done ? (
+                        <Ionicons
+                          name={isPast(entry.remindAt) ? 'notifications-off-outline' : 'notifications'}
+                          size={13}
+                          color={isPast(entry.remindAt) ? colors.textFaint : colors.primary}
+                        />
+                      ) : null}
+                    </View>
 
                     {entry.title ? (
                       <Text
