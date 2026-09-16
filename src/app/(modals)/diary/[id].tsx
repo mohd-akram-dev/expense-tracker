@@ -177,8 +177,13 @@ export default function DiaryModal() {
                 <Switch
                   value={startsAt !== null}
                   onValueChange={(on) => {
-                    if (on) setPicker('time');
-                    else {
+                    if (on) {
+                      // Giving something a time almost always means wanting to be
+                      // reminded of it, so default the reminder on rather than
+                      // making it a second switch people miss.
+                      setRemind(true);
+                      setPicker('time');
+                    } else {
                       setStartsAt(null);
                       setRemind(false); // nothing to remind about without a time
                     }

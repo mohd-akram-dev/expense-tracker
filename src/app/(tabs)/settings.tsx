@@ -7,7 +7,11 @@ import { Button, Card, Chip, ChipRow, Divider, Input, ListRow, Screen, Sheet, Te
 import { wipeAllData } from '@/db/client';
 import { LATEST_SCHEMA_VERSION } from '@/db/migrations';
 import { CURRENCIES, formatMoney, parseAmount, toMajor } from '@/domain/money';
-import { daysSince } from '@/domain/period';
+import { dateTimeLabel, daysSince } from '@/domain/period';
+import {
+  notificationDiagnostics,
+  sendTestNotification,
+} from '@/services/notifications';
 import {
   CANCELLED,
   CAN_SAVE_TO_DEVICE,
@@ -47,6 +51,8 @@ export default function SettingsScreen() {
   const markBackedUp = useSettingsStore((state) => state.markBackedUp);
 
   const currency = CURRENCIES[currencyCode];
+  const [diag, setDiag] =
+    useState<Awaited<ReturnType<typeof notificationDiagnostics>> | null>(null);
 
   async function runExport(kind: 'save' | 'share') {
     setBusy(kind);
@@ -96,6 +102,27 @@ export default function SettingsScreen() {
 
     await setBudget(minor);
     setBudgetSheetOpen(false);
+  }
+
+
+  /** Reminders cannot be verified from a dev machine, so the app reports its own state. */
+  async function runNotificationCheck() {
+    const sent = await sendTestNotification(5);
+    const state = await notificationDiagnostics();
+    setDiag(state);
+
+    Alert.alert(
+      sent ? 'Test sent' : 'Cannot send',
+      sent
+        ? `A notification should appear in about 5 seconds.
+
+Permission: ${state.status}
+Scheduled reminders: ${state.scheduled}`
+        : `Notifications are blocked for this app.
+
+Permission: ${state.status}
+Can ask again: ${state.canAskAgain ? 'yes' : 'no — turn them on in Android settings'}`
+    );
   }
 
   function confirmWipe() {
@@ -155,6 +182,20 @@ export default function SettingsScreen() {
           title="Currency"
           subtitle={`${currency.symbol} · ${currencyCode}`}
           onPress={() => setCurrencySheetOpen(true)}
+          chevron
+        />
+      </Card>
+
+      <Card title="Notifications" flush>
+        <ListRow
+          icon="notifications-outline"
+          title="Send a test notification"
+          subtitle={
+            diag
+              ? `Permission ${diag.status} · ${diag.scheduled} scheduled${diag.nextAt ? ` · next ${dateTimeLabel(diag.nextAt)}` : ''}`
+              : 'Checks whether reminders can reach you'
+          }
+          onPress={runNotificationCheck}
           chevron
         />
       </Card>

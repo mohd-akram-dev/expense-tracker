@@ -131,3 +131,68 @@ export async function scheduledIds(): Promise<Set<string>> {
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   return new Set(scheduled.map((item) => item.identifier));
 }
+
+export type NotificationDiagnostics = {
+  granted: boolean;
+  canAskAgain: boolean;
+  /** iOS-style status string, useful when `granted` alone is not enough */
+  status: string;
+  /** how many alerts the OS currently holds for this app */
+  scheduled: number;
+  /** the next one due, if any */
+  nextAt: string | null;
+};
+
+/**
+ * Everything needed to answer "why didn't my reminder fire?" without guessing.
+ *
+ * Reminders are the one feature that cannot be verified from a development
+ * machine — the notification either appears on the phone or it doesn't — so the
+ * app has to be able to report its own state.
+ */
+export async function notificationDiagnostics(): Promise<NotificationDiagnostics> {
+  const permission = await Notifications.getPermissionsAsync();
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+
+  const dates = scheduled
+    .map((item) => {
+      const trigger = item.trigger as { type?: string; value?: number; date?: number } | null;
+      const value = trigger?.value ?? trigger?.date;
+      return typeof value === 'number' ? new Date(value) : null;
+    })
+    .filter((date): date is Date => date !== null)
+    .sort((a, b) => a.getTime() - b.getTime());
+
+  return {
+    granted: permission.granted,
+    canAskAgain: permission.canAskAgain,
+    status: permission.status,
+    scheduled: scheduled.length,
+    nextAt: dates[0]?.toISOString() ?? null,
+  };
+}
+
+/**
+ * Fires a notification a few seconds out. If this does not appear, the problem
+ * is permissions or the OS — not the reminder logic.
+ */
+export async function sendTestNotification(inSeconds = 5): Promise<boolean> {
+  await setUpNotifications();
+  if (!(await ensureNotificationPermission())) return false;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: 'Expense Diary',
+      body: 'Test notification — reminders are working.',
+      data: { kind: 'test' },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds: inSeconds,
+      repeats: false,
+      channelId: CHANNEL_ID,
+    },
+  });
+
+  return true;
+}
