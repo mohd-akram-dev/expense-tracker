@@ -1,4 +1,5 @@
 import { ListRow, Text } from '@/components/ui';
+import { iconOrFallback } from '@/domain/icons';
 import { formatMoney } from '@/domain/money';
 import { longDateLabel } from '@/domain/period';
 
@@ -29,7 +30,7 @@ export function ExpenseRow({
     <ListRow
       title={expense.title}
       subtitle={subtitle || undefined}
-      icon="pricetag"
+      icon={iconOrFallback(category?.icon)}
       iconColor={category?.color}
       onPress={onPress}
       right={<Text variant="bodyStrong">{formatMoney(expense.amountMinor, currency)}</Text>}

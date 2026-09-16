@@ -1,4 +1,5 @@
 import { File } from 'expo-file-system';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, View } from 'react-native';
 
@@ -138,6 +139,14 @@ export default function SettingsScreen() {
           title="Monthly budget"
           subtitle={budgetMinor > 0 ? formatMoney(budgetMinor, currency) : 'Not set'}
           onPress={openBudgetSheet}
+          chevron
+        />
+        <Divider inset={spacing.lg} />
+        <ListRow
+          icon="pricetags-outline"
+          title="Categories"
+          subtitle="Add, rename, reorder or remove"
+          onPress={() => router.push('/categories')}
           chevron
         />
         <Divider inset={spacing.lg} />

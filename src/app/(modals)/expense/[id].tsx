@@ -14,6 +14,7 @@ import {
   restoreExpense,
   updateExpense,
 } from '@/db/repositories/expenseRepo';
+import { iconOrFallback } from '@/domain/icons';
 import { CURRENCIES, parseAmount, toMajor } from '@/domain/money';
 import { fromIsoDate, isToday, longDateLabel, toIsoDate, today } from '@/domain/period';
 import { useCurrencyCode } from '@/store/settingsStore';
@@ -145,6 +146,7 @@ export default function ExpenseModal() {
             <Chip
               key={category.id}
               label={category.name}
+              icon={iconOrFallback(category.icon)}
               accent={category.color}
               selected={categoryId === category.id}
               onPress={() => setCategoryId(category.id)}
