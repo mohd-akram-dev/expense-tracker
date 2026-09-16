@@ -9,6 +9,7 @@ import {
   setUpNotifications,
 } from './notifications';
 
+import type { ScheduleOutcome } from './notifications';
 import type { DiaryEntry, IsoTimestamp } from '@/domain/types';
 
 /**
@@ -35,15 +36,15 @@ export type SaveReminderInput = {
  * user when it is not — a reminder silently failing to fire is the worst
  * outcome here.
  */
-export async function syncReminder(input: SaveReminderInput): Promise<boolean> {
-  const notificationId = await rescheduleReminder(
+export async function syncReminder(input: SaveReminderInput): Promise<ScheduleOutcome> {
+  const result = await rescheduleReminder(
     { title: input.title, body: input.body },
     input.previousNotificationId,
     input.remindAt
   );
 
-  await setNotificationId(input.entryId, notificationId);
-  return notificationId !== null;
+  await setNotificationId(input.entryId, result.notificationId);
+  return result.outcome;
 }
 
 /** Called when an entry is deleted, so its alert does not fire afterwards. */
@@ -74,7 +75,7 @@ export async function sweepReminders(): Promise<number> {
     if (entry.notificationId && live.has(entry.notificationId)) continue;
     if (!entry.remindAt) continue;
 
-    const notificationId = await scheduleReminder(entry, entry.remindAt);
+    const { notificationId } = await scheduleReminder(entry, entry.remindAt);
     await setNotificationId(entry.id, notificationId);
     if (notificationId) repaired++;
   }

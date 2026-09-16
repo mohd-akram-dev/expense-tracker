@@ -61,24 +61,28 @@ export async function hasNotificationPermission(): Promise<boolean> {
 }
 
 /**
- * Schedules one alert and returns its handle, or null if it could not be
- * scheduled — no permission, or a time that has already passed.
- *
- * Deliberately inexact: exact alarms need SCHEDULE_EXACT_ALARM on Android 14+,
- * which is a permission users are asked to grant in system settings. For
- * "dentist at 4pm" a few minutes of drift is irrelevant, and avoiding that
- * prompt is worth far more.
+ * Why a reminder is or is not in place. A bare null told the user "notifications
+ * are off, or the time has passed" — two unrelated problems with two different
+ * fixes, which is not a useful thing to say to someone.
  */
+export type ScheduleOutcome = 'scheduled' | 'past' | 'denied' | 'invalid' | 'none';
+
+export type ScheduleResult = { outcome: ScheduleOutcome; notificationId: string | null };
+
+/** Schedules one alert, reporting exactly what happened. */
 export async function scheduleReminder(
   entry: Pick<DiaryEntry, 'title' | 'body'>,
   remindAt: IsoTimestamp
-): Promise<string | null> {
+): Promise<ScheduleResult> {
   const when = new Date(remindAt);
-  if (Number.isNaN(when.getTime()) || when.getTime() <= Date.now()) return null;
+  if (Number.isNaN(when.getTime())) return { outcome: 'invalid', notificationId: null };
+  if (when.getTime() <= Date.now()) return { outcome: 'past', notificationId: null };
 
-  if (!(await ensureNotificationPermission())) return null;
+  if (!(await ensureNotificationPermission())) {
+    return { outcome: 'denied', notificationId: null };
+  }
 
-  return Notifications.scheduleNotificationAsync({
+  const notificationId = await Notifications.scheduleNotificationAsync({
     content: {
       title: entry.title?.trim() || 'Reminder',
       body: firstLine(entry.body),
@@ -91,6 +95,8 @@ export async function scheduleReminder(
       channelId: CHANNEL_ID,
     },
   });
+
+  return { outcome: 'scheduled', notificationId };
 }
 
 /** Cancelling an id the OS has already forgotten is not an error worth raising. */
@@ -114,9 +120,9 @@ export async function rescheduleReminder(
   entry: Pick<DiaryEntry, 'title' | 'body'>,
   previousNotificationId: string | null,
   remindAt: IsoTimestamp | null
-): Promise<string | null> {
+): Promise<ScheduleResult> {
   await cancelReminder(previousNotificationId);
-  if (!remindAt) return null;
+  if (!remindAt) return { outcome: 'none', notificationId: null };
   return scheduleReminder(entry, remindAt);
 }
 

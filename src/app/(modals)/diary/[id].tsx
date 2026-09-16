@@ -15,6 +15,7 @@ import {
 import {
   atTimeOn,
   fromIsoDate,
+  isPast,
   isToday,
   longDateLabel,
   timeLabel,
@@ -72,6 +73,10 @@ export default function DiaryModal() {
   /** The reminder fires at the event time. No time means no reminder. */
   const remindAt = remind && startsAt ? startsAt : null;
 
+  // An alarm cannot be set for the past. Worth saying while the time is being
+  // chosen rather than after the entry is already saved.
+  const timeHasPassed = startsAt !== null && isPast(startsAt);
+
   const save = useCallback(async () => {
     if (body.trim().length === 0) return;
 
@@ -92,7 +97,7 @@ export default function DiaryModal() {
 
       // Scheduling happens after the row is saved, so a failed alert never
       // costs the user their typing.
-      const scheduled = await syncReminder({
+      const outcome = await syncReminder({
         entryId,
         title: payload.title,
         body: payload.body,
@@ -100,11 +105,19 @@ export default function DiaryModal() {
         previousNotificationId: notificationId,
       });
 
-      if (remindAt && !scheduled) {
+      // Say which of the two problems it was — they have different fixes.
+      if (outcome === 'past') {
         Alert.alert(
           'Saved, but no reminder',
-          'Notifications are turned off for this app, or the time has already passed. The entry itself is saved.'
+          `${timeLabel(remindAt!)} on ${longDateLabel(entryDate)} has already passed, so there is nothing to remind you about. Pick a later time or a future date.`
         );
+      } else if (outcome === 'denied') {
+        Alert.alert(
+          'Saved, but no reminder',
+          'Notifications are turned off for this app. Turn them on in Android settings, then reopen this entry and save it again.'
+        );
+      } else if (outcome === 'invalid') {
+        Alert.alert('Saved, but no reminder', 'That time could not be read.');
       }
 
       router.back();
@@ -195,12 +208,20 @@ export default function DiaryModal() {
 
             {startsAt ? (
               <ListRow
-                icon="notifications-outline"
+                icon={timeHasPassed ? 'alert-circle-outline' : 'notifications-outline'}
+                iconColor={timeHasPassed ? colors.warning : undefined}
                 title="Remind me"
-                subtitle={remind ? `Notification at ${timeLabel(startsAt)}` : 'Off'}
+                subtitle={
+                  timeHasPassed
+                    ? 'That time has already passed — no alert will fire'
+                    : remind
+                      ? `Notification at ${timeLabel(startsAt)}`
+                      : 'Off'
+                }
                 right={
                   <Switch
-                    value={remind}
+                    value={remind && !timeHasPassed}
+                    disabled={timeHasPassed}
                     onValueChange={setRemind}
                     trackColor={{ true: colors.primary, false: colors.borderStrong }}
                   />
