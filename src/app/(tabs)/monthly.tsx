@@ -1,9 +1,10 @@
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 
 import { ExpenseRow } from '@/components/expense/expense-row';
-import { Card, Chip, ChipRow, Divider, EmptyState, Input, Screen, Select, Text } from '@/components/ui';
+import { Button, Card, Chip, ChipRow, Divider, EmptyState, Input, Screen, Text } from '@/components/ui';
 import { listCategories } from '@/db/repositories/categoryRepo';
 import {
   getCategoryBreakdown,
@@ -13,23 +14,26 @@ import {
 } from '@/db/repositories/expenseRepo';
 import { CURRENCIES, averageMinor, formatMoney } from '@/domain/money';
 import {
-  MONTH_NAMES,
   daysInRange,
+  fromIsoDate,
+  lastNDays,
   longDateLabel,
-  monthAnchor,
-  monthOf,
   monthRange,
+  orderRange,
+  previousMonthRange,
+  rangeLabel,
   toIsoDate,
-  yearOf,
+  today,
+  yearRange,
 } from '@/domain/period';
 import { useFocusQuery } from '@/hooks/use-focus-query';
 import { useCurrencyCode } from '@/store/settingsStore';
 import { useTheme } from '@/theme';
 
-import type { SelectOption } from '@/components/ui';
+import type { DateRange } from '@/domain/period';
 import type { Category, CategoryTotal, Expense, IsoDate, Minor } from '@/domain/types';
 
-type MonthData = {
+type RangeData = {
   total: Minor;
   expenses: Expense[];
   breakdown: CategoryTotal[];
@@ -37,25 +41,37 @@ type MonthData = {
   earliest: IsoDate | null;
 };
 
-const EMPTY: MonthData = { total: 0, expenses: [], breakdown: [], categories: [], earliest: null };
+const EMPTY: RangeData = { total: 0, expenses: [], breakdown: [], categories: [], earliest: null };
 
-const MONTH_OPTIONS: SelectOption<number>[] = MONTH_NAMES.map((name, index) => ({
-  value: index,
-  label: name,
-}));
+/** Which picker is open. Only one at a time. */
+type Picker = 'start' | 'end' | null;
 
-export default function MonthlyScreen() {
+type Preset = { label: string; build: (earliest: IsoDate | null) => DateRange };
+
+/**
+ * Presets exist because two date pickers are a lot of taps for "what did I
+ * spend this month", which is the question being asked almost every time.
+ */
+const PRESETS: Preset[] = [
+  { label: 'This month', build: () => monthRange() },
+  { label: 'Last month', build: () => previousMonthRange() },
+  { label: '30 days', build: () => lastNDays(30) },
+  { label: '90 days', build: () => lastNDays(90) },
+  { label: 'This year', build: () => yearRange() },
+  { label: 'All time', build: (earliest) => ({ start: earliest ?? today(), end: today() }) },
+];
+
+export default function ReportScreen() {
   const { colors, spacing, radius } = useTheme();
   const currency = CURRENCIES[useCurrencyCode()];
 
-  // Defaults to the month containing today.
-  const [anchor, setAnchor] = useState<IsoDate>(() => toIsoDate(new Date()));
+  // Defaults to the current month — the question people ask most.
+  const [range, setRange] = useState<DateRange>(() => monthRange());
+  const [picker, setPicker] = useState<Picker>(null);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
-  const range = useMemo(() => monthRange(anchor), [anchor]);
-
-  const query = useCallback(async (): Promise<MonthData> => {
+  const query = useCallback(async (): Promise<RangeData> => {
     const [total, expenses, breakdown, categories, earliest] = await Promise.all([
       getTotalInRange(range),
       listExpensesInRange(range),
@@ -69,25 +85,14 @@ export default function MonthlyScreen() {
   const { data } = useFocusQuery(query, EMPTY);
   const categoryById = new Map(data.categories.map((category) => [category.id, category]));
 
-  const selectedYear = yearOf(anchor);
-  const selectedMonth = monthOf(anchor);
+  const activePreset = useMemo(
+    () => PRESETS.find((preset) => {
+      const built = preset.build(data.earliest);
+      return built.start === range.start && built.end === range.end;
+    })?.label ?? null,
+    [range, data.earliest]
+  );
 
-  // Offer every year from the oldest expense up to this one — and always the
-  // year being viewed, so the dropdown can never exclude its own value.
-  const yearOptions = useMemo((): SelectOption<number>[] => {
-    const thisYear = new Date().getFullYear();
-    const oldest = data.earliest ? yearOf(data.earliest) : thisYear;
-    const from = Math.min(oldest, selectedYear);
-    const to = Math.max(thisYear, selectedYear);
-
-    return Array.from({ length: to - from + 1 }, (_, index) => {
-      const year = to - index;
-      return { value: year, label: String(year) };
-    });
-  }, [data.earliest, selectedYear]);
-
-  // Filtering in memory rather than re-querying: the month is already loaded,
-  // and a personal month is a few dozen rows.
   const needle = search.trim().toLowerCase();
   const visible = data.expenses.filter((expense) => {
     if (categoryFilter !== null && expense.categoryId !== categoryFilter) return false;
@@ -99,27 +104,50 @@ export default function MonthlyScreen() {
   });
 
   const filteredCategory = data.breakdown.find((row) => row.categoryId === categoryFilter);
-
   const byDay = groupByDay(visible);
-  const dailyAverage = averageMinor(data.total, daysInRange(range));
+  const days = daysInRange(range);
+  const dailyAverage = averageMinor(data.total, days);
+
+  /** Picking an end before the start is an easy slip, so swap rather than show nothing. */
+  function setBound(which: 'start' | 'end', date: IsoDate) {
+    setRange(which === 'start' ? orderRange(date, range.end) : orderRange(range.start, date));
+  }
 
   return (
-    <Screen title="Monthly">
-      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-        <View style={{ flex: 2 }}>
-          <Select
-            title="Month"
-            value={selectedMonth}
-            options={MONTH_OPTIONS}
-            onChange={(month) => setAnchor(monthAnchor(selectedYear, month))}
+    <Screen title="Report" eyebrow={rangeLabel(range)}>
+      <ChipRow>
+        {PRESETS.map((preset) => (
+          <Chip
+            key={preset.label}
+            label={preset.label}
+            selected={activePreset === preset.label}
+            onPress={() => setRange(preset.build(data.earliest))}
+          />
+        ))}
+      </ChipRow>
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+        <View style={{ flex: 1 }}>
+          <Button
+            label={longDateLabel(range.start)}
+            icon="calendar-outline"
+            variant="secondary"
+            size="sm"
+            block
+            onPress={() => setPicker('start')}
           />
         </View>
+        <Text variant="caption" tone="textFaint">
+          to
+        </Text>
         <View style={{ flex: 1 }}>
-          <Select
-            title="Year"
-            value={selectedYear}
-            options={yearOptions}
-            onChange={(year) => setAnchor(monthAnchor(year, selectedMonth))}
+          <Button
+            label={longDateLabel(range.end)}
+            icon="calendar-outline"
+            variant="secondary"
+            size="sm"
+            block
+            onPress={() => setPicker('end')}
           />
         </View>
       </View>
@@ -133,7 +161,7 @@ export default function MonthlyScreen() {
             {formatMoney(data.total, currency)}
           </Text>
           <Text variant="caption" tone="textFaint">
-            {formatMoney(dailyAverage, currency)} a day on average
+            {formatMoney(dailyAverage, currency)} a day over {days} {days === 1 ? 'day' : 'days'}
           </Text>
         </View>
       </Card>
@@ -184,7 +212,7 @@ export default function MonthlyScreen() {
       ) : null}
 
       <Input
-        placeholder="Search this month"
+        placeholder="Search this period"
         value={search}
         onChangeText={setSearch}
         autoCorrect={false}
@@ -206,8 +234,10 @@ export default function MonthlyScreen() {
         <Card>
           <EmptyState
             icon={needle ? 'search-outline' : 'receipt-outline'}
-            title={needle ? 'No matches' : 'Nothing this month'}
-            description={needle ? 'Try a different word.' : 'Expenses you add will show up here.'}
+            title={needle ? 'No matches' : 'Nothing in this period'}
+            description={
+              needle ? 'Try a different word.' : 'Pick a wider range, or add an expense.'
+            }
           />
         </Card>
       ) : (
@@ -228,6 +258,19 @@ export default function MonthlyScreen() {
           </Card>
         ))
       )}
+
+      {picker ? (
+        <DateTimePicker
+          value={fromIsoDate(picker === 'start' ? range.start : range.end)}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'inline' : 'default'}
+          onChange={(event, date) => {
+            if (Platform.OS === 'android') setPicker(null);
+            if (event.type !== 'set' || !date) return;
+            setBound(picker, toIsoDate(date));
+          }}
+        />
+      ) : null}
     </Screen>
   );
 

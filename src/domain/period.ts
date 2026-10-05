@@ -2,12 +2,16 @@ import {
   differenceInCalendarDays,
   eachDayOfInterval,
   endOfMonth,
+  endOfYear,
   format,
   getMonth,
   getYear,
   isSameMonth,
   parseISO,
   startOfMonth,
+  startOfYear,
+  subDays,
+  subMonths,
 } from 'date-fns';
 
 import type { IsoDate, IsoTimestamp } from './types';
@@ -140,4 +144,58 @@ export function dateTimeLabel(timestamp: IsoTimestamp): string {
 
 export function isPast(timestamp: IsoTimestamp): boolean {
   return new Date(timestamp).getTime() <= Date.now();
+}
+
+/* ------------------------------------------------------- Arbitrary ranges */
+
+/** The calendar month before the one containing `date`. */
+export function previousMonthRange(date: Date | IsoDate = new Date()): DateRange {
+  const d = typeof date === 'string' ? fromIsoDate(date) : date;
+  return monthRange(subMonths(d, 1));
+}
+
+/** The last `n` days ending today, inclusive — `lastNDays(30)` covers today and the 29 before. */
+export function lastNDays(n: number, endingOn: Date | IsoDate = new Date()): DateRange {
+  const end = typeof endingOn === 'string' ? fromIsoDate(endingOn) : endingOn;
+  return { start: toIsoDate(subDays(end, n - 1)), end: toIsoDate(end) };
+}
+
+/** 1 January to 31 December of the year containing `date`. */
+export function yearRange(date: Date | IsoDate = new Date()): DateRange {
+  const d = typeof date === 'string' ? fromIsoDate(date) : date;
+  return { start: toIsoDate(startOfYear(d)), end: toIsoDate(endOfYear(d)) };
+}
+
+/**
+ * Keeps a range the right way round. Picking an end before the start is an
+ * easy slip with two separate pickers, and a backwards range silently returns
+ * nothing — so swap rather than show an empty screen.
+ */
+export function orderRange(a: IsoDate, b: IsoDate): DateRange {
+  return a <= b ? { start: a, end: b } : { start: b, end: a };
+}
+
+/** True when the range is exactly one whole calendar month. */
+export function isWholeMonth(range: DateRange): boolean {
+  const month = monthRange(range.start);
+  return month.start === range.start && month.end === range.end;
+}
+
+/**
+ * The shortest label that still says exactly which period this is:
+ * one day, a whole month, within a month, within a year, or spanning years.
+ */
+export function rangeLabel(range: DateRange): string {
+  const start = fromIsoDate(range.start);
+  const end = fromIsoDate(range.end);
+
+  if (range.start === range.end) return format(start, 'd MMM yyyy');
+  if (isWholeMonth(range)) return format(start, 'MMMM yyyy');
+
+  const sameYear = getYear(start) === getYear(end);
+  if (sameYear && getMonth(start) === getMonth(end)) {
+    return `${format(start, 'd')} – ${format(end, 'd MMM yyyy')}`;
+  }
+  if (sameYear) return `${format(start, 'd MMM')} – ${format(end, 'd MMM yyyy')}`;
+  return `${format(start, 'd MMM yyyy')} – ${format(end, 'd MMM yyyy')}`;
 }

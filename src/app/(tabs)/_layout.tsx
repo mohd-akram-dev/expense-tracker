@@ -11,7 +11,7 @@ type IoniconName = ComponentProps<typeof Ionicons>['name'];
 /** Outline when idle, filled when active — the cheapest way to make a tab bar feel alive. */
 const TABS: { name: string; title: string; icon: IoniconName; iconActive: IoniconName }[] = [
   { name: 'index', title: 'Home', icon: 'home-outline', iconActive: 'home' },
-  { name: 'monthly', title: 'Monthly', icon: 'bar-chart-outline', iconActive: 'bar-chart' },
+  { name: 'monthly', title: 'Report', icon: 'bar-chart-outline', iconActive: 'bar-chart' },
   { name: 'diary', title: 'Diary', icon: 'book-outline', iconActive: 'book' },
   { name: 'settings', title: 'Settings', icon: 'settings-outline', iconActive: 'settings' },
 ];
