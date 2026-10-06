@@ -28,8 +28,20 @@ export function getDb(): Promise<SQLite.SQLiteDatabase> {
 async function open(): Promise<SQLite.SQLiteDatabase> {
   const db = await SQLite.openDatabaseAsync(DB_NAME);
 
-  // WAL keeps reads fast while a write is in flight; foreign keys are off by default in SQLite.
-  await db.execAsync('PRAGMA journal_mode = WAL;');
+  /*
+   * Deliberately NOT WAL.
+   *
+   * WAL keeps recent writes in a separate `-wal` file and only folds them into
+   * the main `.db` at a checkpoint — by default after 1000 pages, which a
+   * personal expense database may never reach. So the `.db` can look empty
+   * while every real row sits in a sidecar file. Anything that copies, backs up
+   * or restores the `.db` alone then produces an app with no data.
+   *
+   * Switching to DELETE checkpoints any existing `-wal` into the main database
+   * first, so this also recovers data already stranded there. A single-user app
+   * doing a handful of writes gains nothing from WAL's concurrency.
+   */
+  await db.execAsync('PRAGMA journal_mode = DELETE;');
   await db.execAsync('PRAGMA foreign_keys = ON;');
 
   await runMigrations(db);
