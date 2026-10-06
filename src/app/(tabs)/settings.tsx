@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import { File } from 'expo-file-system';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -271,7 +272,8 @@ export default function SettingsScreen() {
       </Card>
 
       <Text variant="caption" tone="textFaint" center>
-        Expense Diary · schema v{LATEST_SCHEMA_VERSION} · everything stays on this phone
+        Expense Diary {Constants.expoConfig?.version ?? ''} · schema v{LATEST_SCHEMA_VERSION}
+        {'\n'}Everything stays on this phone
       </Text>
 
       <Sheet
